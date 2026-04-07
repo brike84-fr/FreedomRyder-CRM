@@ -1,0 +1,186 @@
+{
+  "name": "FR - Heartbeat Monitor (Daily Health Check)",
+  "nodes": [
+    {
+      "id": "schedule",
+      "name": "Every Day 9 AM Pacific",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [0, 300],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 16 * * *"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "check_recent_leads",
+      "name": "Check Recent Lead Activity",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [250, 200],
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "leads",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "created_at",
+              "keyValue": "={{ $now.minus({hours: 48}).toISO() }}",
+              "condition": "gt"
+            }
+          ]
+        },
+        "returnAll": false,
+        "limit": 1
+      }
+    },
+    {
+      "id": "check_recent_emails",
+      "name": "Check Recent Email Logs",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [250, 400],
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "email_sequence_log",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "sent_at",
+              "keyValue": "={{ $now.minus({hours: 48}).toISO() }}",
+              "condition": "gt"
+            }
+          ]
+        },
+        "returnAll": false,
+        "limit": 1
+      }
+    },
+    {
+      "id": "check_notifications",
+      "name": "Check Recent Notifications",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [250, 600],
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "notifications",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "created_at",
+              "keyValue": "={{ $now.minus({hours: 48}).toISO() }}",
+              "condition": "gt"
+            }
+          ]
+        },
+        "returnAll": false,
+        "limit": 1
+      }
+    },
+    {
+      "id": "build_report",
+      "name": "Build Health Report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [550, 400],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const recentLeads = $('Check Recent Lead Activity').all();\nconst recentEmails = $('Check Recent Email Logs').all();\nconst recentNotifs = $('Check Recent Notifications').all();\n\nconst hasRecentLeads = recentLeads.length > 0 && recentLeads[0].json.id;\nconst hasRecentEmails = recentEmails.length > 0 && recentEmails[0].json.id;\nconst hasRecentNotifs = recentNotifs.length > 0 && recentNotifs[0].json.id;\n\n// Supabase is reachable if any query returned (even empty results)\nconst supabaseAlive = true; // if we got here, connection worked\n\nconst issues = [];\n\n// Note: no recent leads/emails might just mean no new inquiries came in.\n// The real check is whether Supabase is reachable and notifications are flowing.\n// If notifications stopped, the system may have silently disconnected.\n\nif (!hasRecentNotifs && !hasRecentLeads) {\n  issues.push('No new leads OR notifications in the last 48 hours. If inquiries were expected, check that the Gmail trigger is still connected in n8n.');\n}\n\nconst allHealthy = issues.length === 0;\n\nlet html = '<h2>Freedom Ryder CRM — Daily Health Check</h2>';\nhtml += '<p><strong>Date:</strong> ' + new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) + '</p>';\nhtml += '<hr>';\n\nhtml += '<table border=\"1\" cellpadding=\"8\" style=\"border-collapse:collapse\">';\nhtml += '<tr style=\"background:#f0f0f0\"><th>System</th><th>Status</th></tr>';\nhtml += '<tr><td>Supabase Database</td><td style=\"color:green\">Connected</td></tr>';\nhtml += '<tr><td>Recent Leads (48h)</td><td>' + (hasRecentLeads ? '<span style=\"color:green\">Yes</span>' : '<span style=\"color:orange\">None</span>') + '</td></tr>';\nhtml += '<tr><td>Recent Emails Sent (48h)</td><td>' + (hasRecentEmails ? '<span style=\"color:green\">Yes</span>' : '<span style=\"color:orange\">None</span>') + '</td></tr>';\nhtml += '<tr><td>Recent Notifications (48h)</td><td>' + (hasRecentNotifs ? '<span style=\"color:green\">Yes</span>' : '<span style=\"color:orange\">None</span>') + '</td></tr>';\nhtml += '</table>';\n\nif (issues.length > 0) {\n  html += '<br><h3 style=\"color:red\">Issues Detected</h3><ul>';\n  for (const issue of issues) {\n    html += '<li>' + issue + '</li>';\n  }\n  html += '</ul>';\n  html += '<p><strong>Action:</strong> Log into your n8n dashboard and check that all workflows are active and the Gmail trigger is connected.</p>';\n} else {\n  html += '<br><p style=\"color:green\"><strong>All systems healthy.</strong> No action needed.</p>';\n}\n\nreturn [{ json: { allHealthy, issues, html, hasIssues: issues.length > 0 } }];"
+      }
+    },
+    {
+      "id": "has_issues",
+      "name": "Any Issues?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [800, 400],
+      "parameters": {
+        "conditions": {
+          "options": { "version": 2, "caseSensitive": false, "typeValidation": "strict" },
+          "conditions": [
+            {
+              "id": "cond_issues",
+              "leftValue": "={{ $json.hasIssues }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "true" }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "alert_forrest",
+      "name": "Alert Forrest",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [1050, 300],
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "sendTo": "<<FORREST_EMAIL>>",
+        "subject": "CRM Health Alert — Issues Detected",
+        "emailType": "html",
+        "message": "={{ $json.html }}"
+      }
+    },
+    {
+      "id": "log_healthy",
+      "name": "Log Healthy Check",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1050, 500],
+      "parameters": {
+        "operation": "create",
+        "tableId": "notifications",
+        "fieldsToSend": {
+          "fieldValues": [
+            { "fieldName": "type", "fieldValue": "import" },
+            { "fieldName": "title", "fieldValue": "Health Check Passed" },
+            { "fieldName": "message", "fieldValue": "Daily system health check completed — all systems healthy" },
+            { "fieldName": "read", "fieldValue": "true" }
+          ]
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Every Day 9 AM Pacific": {
+      "main": [[
+        { "node": "Check Recent Lead Activity", "type": "main", "index": 0 },
+        { "node": "Check Recent Email Logs", "type": "main", "index": 0 },
+        { "node": "Check Recent Notifications", "type": "main", "index": 0 }
+      ]]
+    },
+    "Check Recent Lead Activity": {
+      "main": [[{ "node": "Build Health Report", "type": "main", "index": 0 }]]
+    },
+    "Check Recent Email Logs": {
+      "main": [[{ "node": "Build Health Report", "type": "main", "index": 0 }]]
+    },
+    "Check Recent Notifications": {
+      "main": [[{ "node": "Build Health Report", "type": "main", "index": 0 }]]
+    },
+    "Build Health Report": {
+      "main": [[{ "node": "Any Issues?", "type": "main", "index": 0 }]]
+    },
+    "Any Issues?": {
+      "main": [
+        [{ "node": "Alert Forrest", "type": "main", "index": 0 }],
+        [{ "node": "Log Healthy Check", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "errorWorkflow": "<<ERROR_WORKFLOW_ID>>"
+  }
+}

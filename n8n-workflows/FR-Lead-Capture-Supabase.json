@@ -1,0 +1,283 @@
+{
+  "name": "FR - New Inquiry → Supabase + Auto-Reply",
+  "nodes": [
+    {
+      "id": "trigger",
+      "name": "Gmail Trigger",
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.3,
+      "position": [0, 300],
+      "parameters": {
+        "event": "messageReceived",
+        "simple": true,
+        "filters": {
+          "q": "subject:Inquiry -label:fr-auto-sent"
+        }
+      }
+    },
+    {
+      "id": "parse",
+      "name": "Parse Email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [250, 300],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const items = $input.all();\nconst results = [];\n\nfor (const item of items) {\n  try {\n    const text = item.json.text || item.json.snippet || item.json.body || '';\n    const subject = item.json.subject || '';\n    const messageId = item.json.id || item.json.messageId || '';\n    const threadId = item.json.threadId || '';\n\n    const fullName = text.match(/Full Name:\\s*(.+)/)?.[1]?.trim() || '';\n    const email = text.match(/Email:\\s*(.+)/)?.[1]?.trim() || '';\n    const phone = text.match(/Phone:\\s*(.+)/)?.[1]?.trim() || '';\n    const state = text.match(/State:\\s*(.+)/)?.[1]?.trim() || '';\n    const ridingGoal = text.match(/Primary Riding Goal:\\s*(.+)/)?.[1]?.trim() || '';\n    const height = text.match(/Height:\\s*(.+)/)?.[1]?.trim() || '';\n    const weight = text.match(/Weight:\\s*(.+)/)?.[1]?.trim() || '';\n\n    if (!email || !email.includes('@')) continue;\n\n    const isVeteran = subject.toLowerCase().includes('veteran');\n    const firstName = fullName.split(' ')[0] || 'there';\n\n    results.push({\n      json: {\n        fullName,\n        firstName,\n        email,\n        phone,\n        state,\n        ridingGoal,\n        height,\n        weight,\n        inquiryType: isVeteran ? 'veteran' : 'general',\n        originalSubject: subject,\n        messageId,\n        threadId\n      }\n    });\n  } catch (error) {\n    continue;\n  }\n}\n\nif (results.length === 0) {\n  throw new Error('Could not parse a valid email from the inquiry.');\n}\n\nreturn results;"
+      }
+    },
+    {
+      "id": "check_duplicate",
+      "name": "Check Duplicate Lead",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [500, 300],
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "leads",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "email",
+              "keyValue": "={{ $json.email }}"
+            }
+          ]
+        },
+        "returnAll": false,
+        "limit": 1
+      }
+    },
+    {
+      "id": "is_new",
+      "name": "Is New Lead?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [750, 300],
+      "parameters": {
+        "conditions": {
+          "options": { "version": 2, "caseSensitive": false, "typeValidation": "strict" },
+          "conditions": [
+            {
+              "id": "cond_new",
+              "leftValue": "={{ $json.id }}",
+              "rightValue": "",
+              "operator": { "type": "string", "operation": "empty" }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "insert_lead",
+      "name": "Insert Lead into Supabase",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1000, 200],
+      "parameters": {
+        "operation": "create",
+        "tableId": "leads",
+        "fieldsToSend": {
+          "fieldValues": [
+            { "fieldName": "full_name", "fieldValue": "={{ $('Parse Email').first().json.fullName }}" },
+            { "fieldName": "first_name", "fieldValue": "={{ $('Parse Email').first().json.firstName }}" },
+            { "fieldName": "email", "fieldValue": "={{ $('Parse Email').first().json.email }}" },
+            { "fieldName": "phone", "fieldValue": "={{ $('Parse Email').first().json.phone }}" },
+            { "fieldName": "state", "fieldValue": "={{ $('Parse Email').first().json.state }}" },
+            { "fieldName": "riding_goal", "fieldValue": "={{ $('Parse Email').first().json.ridingGoal }}" },
+            { "fieldName": "height", "fieldValue": "={{ $('Parse Email').first().json.height }}" },
+            { "fieldName": "weight", "fieldValue": "={{ $('Parse Email').first().json.weight }}" },
+            { "fieldName": "inquiry_type", "fieldValue": "={{ $('Parse Email').first().json.inquiryType }}" },
+            { "fieldName": "status", "fieldValue": "new" },
+            { "fieldName": "temperature", "fieldValue": "medium" },
+            { "fieldName": "source", "fieldValue": "website" },
+            { "fieldName": "email_sequence_active", "fieldValue": "true" },
+            { "fieldName": "email_sequence_step", "fieldValue": "0" }
+          ]
+        }
+      }
+    },
+    {
+      "id": "check_type",
+      "name": "Veteran or General?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1250, 200],
+      "parameters": {
+        "conditions": {
+          "options": { "version": 2, "caseSensitive": false, "typeValidation": "strict" },
+          "conditions": [
+            {
+              "id": "cond_vet",
+              "leftValue": "={{ $('Parse Email').first().json.inquiryType }}",
+              "rightValue": "veteran",
+              "operator": { "type": "string", "operation": "equals" }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "send_veteran",
+      "name": "Send Veteran Auto-Reply",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [1500, 100],
+
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "sendTo": "={{ $('Parse Email').first().json.email }}",
+        "subject": "Freedom Ryder Handcycles - VA Funding & Handcycle Info",
+        "emailType": "text",
+        "message": "={{ 'Hi ' + $('Parse Email').first().json.firstName + ',\\n\\nThis is Mike from Freedom Ryder Handcycles. Thanks for requesting more info on our handcycles + possible VA funding options!\\n\\nFirst, here\\'s a short video of one of our early riders so you can see what these handcycles can do: https://www.youtube.com/watch?v=hcmka1TgSVM&t=140s\\n\\nQuick question: what\\'s the easiest way to follow up with you—email, text, or a quick call?\\n\\nThanks,\\n\\nMike\\n503-692-1029' }}",
+        "options": {
+          "appendAttribution": false
+        }
+      }
+    },
+    {
+      "id": "send_general",
+      "name": "Send General Auto-Reply",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [1500, 300],
+
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "sendTo": "={{ $('Parse Email').first().json.email }}",
+        "subject": "Freedom Ryder Handcycles - Thanks for Reaching Out!",
+        "emailType": "text",
+        "message": "={{ 'Hi ' + $('Parse Email').first().json.firstName + ',\\n\\nThis is Mike from Freedom Ryder Handcycles. Thanks for requesting more info!\\n\\nFirst, here\\'s a short video of one of our early riders so you can see what these handcycles can do: https://www.youtube.com/watch?v=hcmka1TgSVM&t=140s\\n\\nQuick question: what\\'s the easiest way to follow up with you—email, text, or a quick call?\\n\\nThanks,\\n\\nMike\\n503-692-1029' }}",
+        "options": {
+          "appendAttribution": false
+        }
+      }
+    },
+    {
+      "id": "label_sent",
+      "name": "Tag Email as Auto-Sent",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [1750, 200],
+      "parameters": {
+        "resource": "message",
+        "operation": "addLabels",
+        "messageId": "={{ $('Parse Email').first().json.messageId }}",
+        "labelIds": ["fr-auto-sent"]
+      }
+    },
+    {
+      "id": "update_step_1",
+      "name": "Mark Step 1 Sent",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [2000, 100],
+      "parameters": {
+        "operation": "update",
+        "tableId": "leads",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "email",
+              "keyValue": "={{ $('Parse Email').first().json.email }}"
+            }
+          ]
+        },
+        "fieldsToSend": {
+          "fieldValues": [
+            { "fieldName": "email_sequence_step", "fieldValue": "1" },
+            { "fieldName": "status", "fieldValue": "contacted" },
+            { "fieldName": "last_contacted_at", "fieldValue": "={{ $now.toISO() }}" }
+          ]
+        }
+      }
+    },
+    {
+      "id": "log_email_1",
+      "name": "Log Email 1",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [2000, 300],
+      "parameters": {
+        "operation": "create",
+        "tableId": "email_sequence_log",
+        "fieldsToSend": {
+          "fieldValues": [
+            { "fieldName": "lead_id", "fieldValue": "={{ $('Insert Lead into Supabase').first().json.id }}" },
+            { "fieldName": "step", "fieldValue": "1" },
+            { "fieldName": "email_subject", "fieldValue": "={{ $('Parse Email').first().json.inquiryType === 'veteran' ? 'VA Funding & Handcycle Info' : 'Thanks for Reaching Out!' }}" },
+            { "fieldName": "status", "fieldValue": "sent" }
+          ]
+        }
+      }
+    },
+    {
+      "id": "notify_new_lead",
+      "name": "Notify: New Lead",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [2250, 200],
+      "parameters": {
+        "operation": "create",
+        "tableId": "notifications",
+        "fieldsToSend": {
+          "fieldValues": [
+            { "fieldName": "type", "fieldValue": "new_lead" },
+            { "fieldName": "title", "fieldValue": "New Lead" },
+            { "fieldName": "message", "fieldValue": "={{ $('Parse Email').first().json.fullName + ' submitted the website form (' + $('Parse Email').first().json.inquiryType + ')' }}" },
+            { "fieldName": "lead_id", "fieldValue": "={{ $('Insert Lead into Supabase').first().json.id }}" }
+          ]
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Gmail Trigger": {
+      "main": [[{ "node": "Parse Email", "type": "main", "index": 0 }]]
+    },
+    "Parse Email": {
+      "main": [[{ "node": "Check Duplicate Lead", "type": "main", "index": 0 }]]
+    },
+    "Check Duplicate Lead": {
+      "main": [[{ "node": "Is New Lead?", "type": "main", "index": 0 }]]
+    },
+    "Is New Lead?": {
+      "main": [
+        [{ "node": "Insert Lead into Supabase", "type": "main", "index": 0 }],
+        []
+      ]
+    },
+    "Insert Lead into Supabase": {
+      "main": [[{ "node": "Veteran or General?", "type": "main", "index": 0 }]]
+    },
+    "Veteran or General?": {
+      "main": [
+        [{ "node": "Send Veteran Auto-Reply", "type": "main", "index": 0 }],
+        [{ "node": "Send General Auto-Reply", "type": "main", "index": 0 }]
+      ]
+    },
+    "Send Veteran Auto-Reply": {
+      "main": [[{ "node": "Tag Email as Auto-Sent", "type": "main", "index": 0 }]]
+    },
+    "Send General Auto-Reply": {
+      "main": [[{ "node": "Tag Email as Auto-Sent", "type": "main", "index": 0 }]]
+    },
+    "Tag Email as Auto-Sent": {
+      "main": [
+        [
+          { "node": "Mark Step 1 Sent", "type": "main", "index": 0 },
+          { "node": "Log Email 1", "type": "main", "index": 0 },
+          { "node": "Notify: New Lead", "type": "main", "index": 0 }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "errorWorkflow": "<<ERROR_WORKFLOW_ID>>"
+  }
+}

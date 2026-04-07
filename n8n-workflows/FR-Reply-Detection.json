@@ -1,0 +1,235 @@
+{
+  "name": "FR - Reply Detection → Stop Sequence + Notify",
+  "nodes": [
+    {
+      "id": "trigger",
+      "name": "Gmail Trigger — Replies",
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.3,
+      "position": [0, 300],
+      "parameters": {
+        "event": "messageReceived",
+        "simple": true,
+        "filters": {
+          "q": "in:inbox -from:me -label:fr-auto-sent subject:(\"Freedom Ryder\" OR \"Reaching Out\" OR \"Following Up\" OR \"One Last Thing\" OR \"VA Funding\")"
+        }
+      }
+    },
+    {
+      "id": "extract_sender",
+      "name": "Extract Sender Email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [250, 300],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const items = $input.all();\nconst results = [];\n\nfor (const item of items) {\n  const from = item.json.from || item.json.sender || '';\n  // Extract email from \"Name <email@domain.com>\" format\n  const emailMatch = from.match(/<([^>]+)>/) || from.match(/([\\w.+-]+@[\\w.-]+)/);\n  const senderEmail = emailMatch ? emailMatch[1].toLowerCase().trim() : '';\n\n  if (!senderEmail) continue;\n\n  results.push({\n    json: {\n      senderEmail,\n      subject: item.json.subject || '',\n      snippet: item.json.snippet || item.json.text || '',\n      receivedAt: item.json.date || new Date().toISOString()\n    }\n  });\n}\n\nif (results.length === 0) {\n  return [{ json: { noValidSender: true } }];\n}\n\nreturn results;"
+      }
+    },
+    {
+      "id": "check_valid",
+      "name": "Valid Sender?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [500, 300],
+      "parameters": {
+        "conditions": {
+          "options": { "version": 2, "caseSensitive": false, "typeValidation": "strict" },
+          "conditions": [
+            {
+              "id": "cond_valid",
+              "leftValue": "={{ $json.noValidSender }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "notTrue" }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "find_lead",
+      "name": "Find Lead in Supabase",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [750, 200],
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "leads",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "email",
+              "keyValue": "={{ $json.senderEmail }}"
+            }
+          ]
+        },
+        "returnAll": false,
+        "limit": 1
+      }
+    },
+    {
+      "id": "lead_exists",
+      "name": "Lead Found?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1000, 200],
+      "parameters": {
+        "conditions": {
+          "options": { "version": 2, "caseSensitive": false, "typeValidation": "strict" },
+          "conditions": [
+            {
+              "id": "cond_exists",
+              "leftValue": "={{ $json.id }}",
+              "rightValue": "",
+              "operator": { "type": "string", "operation": "notEmpty" }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "stop_sequence",
+      "name": "Stop Sequence + Mark Replied",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1250, 100],
+      "parameters": {
+        "operation": "update",
+        "tableId": "leads",
+        "filters": {
+          "conditions": [{ "keyName": "id", "keyValue": "={{ $json.id }}" }]
+        },
+        "fieldsToSend": {
+          "fieldValues": [
+            { "fieldName": "email_sequence_active", "fieldValue": "false" },
+            { "fieldName": "status", "fieldValue": "replied" },
+            { "fieldName": "last_replied_at", "fieldValue": "={{ $now.toISO() }}" }
+          ]
+        }
+      }
+    },
+    {
+      "id": "update_log",
+      "name": "Find Latest Email Log",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1250, 300],
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "email_sequence_log",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "lead_id",
+              "keyValue": "={{ $('Find Lead in Supabase').first().json.id }}"
+            }
+          ]
+        },
+        "returnAll": true,
+        "options": {
+          "order": { "field": "sent_at", "direction": "desc" }
+        }
+      }
+    },
+    {
+      "id": "persist_log_replied",
+      "name": "Mark Log as Replied",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1500, 450],
+      "parameters": {
+        "operation": "update",
+        "tableId": "email_sequence_log",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "keyValue": "={{ $('Find Latest Email Log').first().json.id }}"
+            }
+          ]
+        },
+        "fieldsToSend": {
+          "fieldValues": [
+            { "fieldName": "status", "fieldValue": "replied" }
+          ]
+        }
+      }
+    },
+    {
+      "id": "notify_reply",
+      "name": "Notify: Lead Replied",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1500, 100],
+      "parameters": {
+        "operation": "create",
+        "tableId": "notifications",
+        "fieldsToSend": {
+          "fieldValues": [
+            { "fieldName": "type", "fieldValue": "reply" },
+            { "fieldName": "title", "fieldValue": "Lead Replied" },
+            { "fieldName": "message", "fieldValue": "={{ $('Find Lead in Supabase').first().json.full_name + ' replied to an email: \"' + $('Extract Sender Email').first().json.snippet.substring(0, 80) + '...\"' }}" },
+            { "fieldName": "lead_id", "fieldValue": "={{ $('Find Lead in Supabase').first().json.id }}" }
+          ]
+        }
+      }
+    },
+    {
+      "id": "send_forrest_alert",
+      "name": "Email Alert to Forrest",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [1500, 300],
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "sendTo": "<<FORREST_EMAIL>>",
+        "subject": "={{ '🔔 Lead Replied: ' + $('Find Lead in Supabase').first().json.full_name }}",
+        "emailType": "text",
+        "message": "={{ $('Find Lead in Supabase').first().json.full_name + ' just replied to an automated email.\\n\\nTheir email sequence has been automatically stopped.\\n\\nPreview: ' + $('Extract Sender Email').first().json.snippet.substring(0, 200) + '\\n\\nCheck your CRM for details.' }}"
+      }
+    }
+  ],
+  "connections": {
+    "Gmail Trigger — Replies": {
+      "main": [[{ "node": "Extract Sender Email", "type": "main", "index": 0 }]]
+    },
+    "Extract Sender Email": {
+      "main": [[{ "node": "Valid Sender?", "type": "main", "index": 0 }]]
+    },
+    "Valid Sender?": {
+      "main": [
+        [{ "node": "Find Lead in Supabase", "type": "main", "index": 0 }],
+        []
+      ]
+    },
+    "Find Lead in Supabase": {
+      "main": [[{ "node": "Lead Found?", "type": "main", "index": 0 }]]
+    },
+    "Lead Found?": {
+      "main": [
+        [
+          { "node": "Stop Sequence + Mark Replied", "type": "main", "index": 0 },
+          { "node": "Find Latest Email Log", "type": "main", "index": 0 }
+        ],
+        []
+      ]
+    },
+    "Stop Sequence + Mark Replied": {
+      "main": [[
+        { "node": "Notify: Lead Replied", "type": "main", "index": 0 },
+        { "node": "Email Alert to Forrest", "type": "main", "index": 0 }
+      ]]
+    },
+    "Find Latest Email Log": {
+      "main": [[{ "node": "Mark Log as Replied", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "errorWorkflow": "<<ERROR_WORKFLOW_ID>>"
+  }
+}

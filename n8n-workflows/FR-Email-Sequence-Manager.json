@@ -1,0 +1,332 @@
+{
+  "name": "FR - Email Sequence Manager (Steps 2 & 3)",
+  "nodes": [
+    {
+      "id": "schedule",
+      "name": "Every 2 Hours",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [0, 300],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 2
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "get_active",
+      "name": "Get Active Sequence Leads",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "leads",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "email_sequence_active",
+              "keyValue": "true"
+            },
+            {
+              "keyName": "email_sequence_step",
+              "keyValue": "0",
+              "condition": "gt"
+            }
+          ]
+        },
+        "returnAll": true
+      }
+    },
+    {
+      "id": "get_settings",
+      "name": "Get Sequence Settings",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [250, 500],
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "email_sequence_settings",
+        "returnAll": false,
+        "limit": 1
+      }
+    },
+    {
+      "id": "get_email_logs",
+      "name": "Get Email Logs",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [250, 700],
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "email_sequence_log",
+        "returnAll": true
+      }
+    },
+    {
+      "id": "check_due",
+      "name": "Check What's Due",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [550, 300],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const leads = $('Get Active Sequence Leads').all();\nconst settings = $('Get Sequence Settings').first().json;\nconst emailLogs = $('Get Email Logs').all();\nconst now = new Date();\n\n// Build a lookup: leadId -> set of steps with 'sent' status\nconst sentSteps = {};\nfor (const log of emailLogs) {\n  const l = log.json;\n  if (!sentSteps[l.lead_id]) sentSteps[l.lead_id] = new Set();\n  if (l.status === 'sent' || l.status === 'delivered' || l.status === 'opened' || l.status === 'replied') {\n    sentSteps[l.lead_id].add(l.step);\n  }\n}\n\nconst email2Due = [];\nconst email3Due = [];\n\nfor (const item of leads) {\n  const lead = item.json;\n  const lastContacted = new Date(lead.last_contacted_at);\n  const daysSinceContact = (now - lastContacted) / (1000 * 60 * 60 * 24);\n  const leadSent = sentSteps[lead.id] || new Set();\n\n  // Step 1 done, check if email 2 is due\n  // SAFETY: only send email 2 if email 1 was actually sent\n  if (lead.email_sequence_step === 1 && daysSinceContact >= (settings.email_2_delay_days || 3)) {\n    if (leadSent.has(1)) {\n      email2Due.push({ json: { ...lead, nextStep: 2, subject: settings.email_2_subject || 'Following Up — Freedom Ryder' } });\n    }\n  }\n\n  // Step 2 done, check if email 3 is due\n  // SAFETY: only send email 3 if email 2 was actually sent\n  if (lead.email_sequence_step === 2 && daysSinceContact >= (settings.email_3_delay_days || 7)) {\n    if (leadSent.has(2)) {\n      email3Due.push({ json: { ...lead, nextStep: 3, subject: settings.email_3_subject || 'One Last Thing — Freedom Ryder' } });\n    }\n  }\n}\n\nconst allDue = [...email2Due, ...email3Due];\n\nif (allDue.length === 0) {\n  return [{ json: { nothingDue: true } }];\n}\n\nreturn allDue;"
+      }
+    },
+    {
+      "id": "has_due",
+      "name": "Any Emails Due?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [800, 300],
+      "parameters": {
+        "conditions": {
+          "options": { "version": 2, "caseSensitive": false, "typeValidation": "strict" },
+          "conditions": [
+            {
+              "id": "cond_due",
+              "leftValue": "={{ $json.nothingDue }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "notTrue" }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "route_step",
+      "name": "Step 2 or Step 3?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1050, 200],
+      "parameters": {
+        "conditions": {
+          "options": { "version": 2, "caseSensitive": false, "typeValidation": "strict" },
+          "conditions": [
+            {
+              "id": "cond_step",
+              "leftValue": "={{ $json.nextStep }}",
+              "rightValue": "2",
+              "operator": { "type": "number", "operation": "equals" }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "send_email_2",
+      "name": "Send Follow-Up (Email 2)",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [1300, 100],
+
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "sendTo": "={{ $json.email }}",
+        "subject": "={{ $json.subject }}",
+        "emailType": "text",
+        "message": "={{ 'Hi ' + $json.first_name + ',\\n\\nJust following up on your inquiry about Freedom Ryder Handcycles. I wanted to make sure you got all the info you need.\\n\\nHave any questions about our handcycles, sizing, or' + ($json.inquiry_type === 'veteran' ? ' VA funding options' : ' pricing') + '? Happy to hop on a quick call or answer over email.\\n\\nHere\\'s that video again if you missed it: https://www.youtube.com/watch?v=hcmka1TgSVM&t=140s\\n\\nThanks,\\n\\nMike\\n503-692-1029' }}",
+        "options": {
+          "appendAttribution": false
+        }
+      }
+    },
+    {
+      "id": "send_email_3",
+      "name": "Send Handoff Email (Email 3)",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [1300, 350],
+
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "sendTo": "={{ $json.email }}",
+        "subject": "={{ $json.subject }}",
+        "emailType": "text",
+        "message": "={{ 'Hi ' + $json.first_name + ',\\n\\nI wanted to reach out one more time — I know life gets busy!\\n\\nI\\'m connecting you with Bob, our sales specialist. He\\'s great at helping folks find the right handcycle setup' + ($json.inquiry_type === 'veteran' ? ' and navigate VA funding' : '') + '.\\n\\nBob will be reaching out to you shortly. In the meantime, feel free to reply here or call us directly.\\n\\nThanks for your interest in Freedom Ryder!\\n\\nMike\\n503-692-1029' }}",
+        "options": {
+          "appendAttribution": false
+        }
+      }
+    },
+    {
+      "id": "label_email_2",
+      "name": "Tag Email 2 Sent",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [1550, 100],
+      "parameters": {
+        "resource": "message",
+        "operation": "addLabels",
+        "messageId": "={{ $json.messageId || '' }}",
+        "labelIds": ["fr-auto-sent"]
+      }
+    },
+    {
+      "id": "update_step_2",
+      "name": "Update Lead → Step 2",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1800, 100],
+      "parameters": {
+        "operation": "update",
+        "tableId": "leads",
+        "filters": {
+          "conditions": [{ "keyName": "id", "keyValue": "={{ $json.id }}" }]
+        },
+        "fieldsToSend": {
+          "fieldValues": [
+            { "fieldName": "email_sequence_step", "fieldValue": "2" },
+            { "fieldName": "last_contacted_at", "fieldValue": "={{ $now.toISO() }}" }
+          ]
+        }
+      }
+    },
+    {
+      "id": "log_email_2",
+      "name": "Log Email 2",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1800, 0],
+      "parameters": {
+        "operation": "create",
+        "tableId": "email_sequence_log",
+        "fieldsToSend": {
+          "fieldValues": [
+            { "fieldName": "lead_id", "fieldValue": "={{ $json.id }}" },
+            { "fieldName": "step", "fieldValue": "2" },
+            { "fieldName": "email_subject", "fieldValue": "={{ $json.subject }}" },
+            { "fieldName": "status", "fieldValue": "sent" }
+          ]
+        }
+      }
+    },
+    {
+      "id": "update_step_3",
+      "name": "Update Lead → Step 3 + Assign Bob",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1550, 350],
+      "parameters": {
+        "operation": "update",
+        "tableId": "leads",
+        "filters": {
+          "conditions": [{ "keyName": "id", "keyValue": "={{ $json.id }}" }]
+        },
+        "fieldsToSend": {
+          "fieldValues": [
+            { "fieldName": "email_sequence_step", "fieldValue": "3" },
+            { "fieldName": "email_sequence_active", "fieldValue": "false" },
+            { "fieldName": "assigned_to", "fieldValue": "bob" },
+            { "fieldName": "last_contacted_at", "fieldValue": "={{ $now.toISO() }}" },
+            { "fieldName": "tags", "fieldValue": "={{ JSON.stringify([...(JSON.parse($json.tags || '[]')), \"bob's lead\"]) }}" }
+          ]
+        }
+      }
+    },
+    {
+      "id": "log_email_3",
+      "name": "Log Email 3",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1550, 500],
+      "parameters": {
+        "operation": "create",
+        "tableId": "email_sequence_log",
+        "fieldsToSend": {
+          "fieldValues": [
+            { "fieldName": "lead_id", "fieldValue": "={{ $json.id }}" },
+            { "fieldName": "step", "fieldValue": "3" },
+            { "fieldName": "email_subject", "fieldValue": "={{ $json.subject }}" },
+            { "fieldName": "status", "fieldValue": "sent" }
+          ]
+        }
+      }
+    },
+    {
+      "id": "notify_handoff",
+      "name": "Notify: Handoff to Bob",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1800, 350],
+      "parameters": {
+        "operation": "create",
+        "tableId": "notifications",
+        "fieldsToSend": {
+          "fieldValues": [
+            { "fieldName": "type", "fieldValue": "sequence_complete" },
+            { "fieldName": "title", "fieldValue": "Sequence Complete" },
+            { "fieldName": "message", "fieldValue": "={{ $json.full_name + ' completed the 3-email sequence — handed off to Bob' }}" },
+            { "fieldName": "lead_id", "fieldValue": "={{ $json.id }}" }
+          ]
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Every 2 Hours": {
+      "main": [[
+        { "node": "Get Active Sequence Leads", "type": "main", "index": 0 },
+        { "node": "Get Sequence Settings", "type": "main", "index": 0 },
+        { "node": "Get Email Logs", "type": "main", "index": 0 }
+      ]]
+    },
+    "Get Active Sequence Leads": {
+      "main": [[{ "node": "Check What's Due", "type": "main", "index": 0 }]]
+    },
+    "Get Sequence Settings": {
+      "main": [[{ "node": "Check What's Due", "type": "main", "index": 0 }]]
+    },
+    "Get Email Logs": {
+      "main": [[{ "node": "Check What's Due", "type": "main", "index": 0 }]]
+    },
+    "Check What's Due": {
+      "main": [[{ "node": "Any Emails Due?", "type": "main", "index": 0 }]]
+    },
+    "Any Emails Due?": {
+      "main": [
+        [{ "node": "Step 2 or Step 3?", "type": "main", "index": 0 }],
+        []
+      ]
+    },
+    "Step 2 or Step 3?": {
+      "main": [
+        [{ "node": "Send Follow-Up (Email 2)", "type": "main", "index": 0 }],
+        [{ "node": "Send Handoff Email (Email 3)", "type": "main", "index": 0 }]
+      ]
+    },
+    "Send Follow-Up (Email 2)": {
+      "main": [[{ "node": "Tag Email 2 Sent", "type": "main", "index": 0 }]]
+    },
+    "Tag Email 2 Sent": {
+      "main": [[
+        { "node": "Update Lead → Step 2", "type": "main", "index": 0 },
+        { "node": "Log Email 2", "type": "main", "index": 0 }
+      ]]
+    },
+    "Send Handoff Email (Email 3)": {
+      "main": [[
+        { "node": "Update Lead → Step 3 + Assign Bob", "type": "main", "index": 0 },
+        { "node": "Log Email 3", "type": "main", "index": 0 }
+      ]]
+    },
+    "Update Lead → Step 3 + Assign Bob": {
+      "main": [[{ "node": "Notify: Handoff to Bob", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "errorWorkflow": "<<ERROR_WORKFLOW_ID>>"
+  }
+}
