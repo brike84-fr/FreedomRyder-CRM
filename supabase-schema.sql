@@ -224,109 +224,134 @@ from leads;
 -- ============================================
 -- ROW LEVEL SECURITY
 -- ============================================
--- All tables locked down: only authenticated users can access.
+-- Security model: allowlist of authorized user emails.
+-- Only users in the allowed_emails list can access any data.
 -- n8n uses the service_role key (bypasses RLS) for automation writes.
 -- The frontend uses the anon key + user JWT (subject to RLS).
+--
+-- SETUP: After creating Forrest's auth account, add his email below.
+-- To add users later, INSERT into allowed_crm_users.
+
+create table allowed_crm_users (
+  email text primary key
+);
+
+-- Insert authorized users (add Forrest's email after account creation)
+-- insert into allowed_crm_users (email) values ('forrest@freedomryder.com');
+
+-- Helper function: check if current user is authorized
+create or replace function is_authorized_user()
+returns boolean as $$
+begin
+  return exists (
+    select 1 from allowed_crm_users
+    where email = (select auth.jwt() ->> 'email')
+  );
+end;
+$$ language plpgsql security definer set search_path = '';
+
+-- RLS on the allowlist table itself (only service_role can modify)
+alter table allowed_crm_users enable row level security;
+-- No policies = no access via anon/authenticated. Only service_role can manage.
 
 -- LEADS
 alter table leads enable row level security;
 
-create policy "Authenticated users can read leads"
+create policy "Authorized users can read leads"
   on leads for select
   to authenticated
-  using (true);
+  using (is_authorized_user());
 
-create policy "Authenticated users can insert leads"
+create policy "Authorized users can insert leads"
   on leads for insert
   to authenticated
-  with check (true);
+  with check (is_authorized_user());
 
-create policy "Authenticated users can update leads"
+create policy "Authorized users can update leads"
   on leads for update
   to authenticated
-  using (true)
-  with check (true);
+  using (is_authorized_user())
+  with check (is_authorized_user());
 
-create policy "Authenticated users can delete leads"
+create policy "Authorized users can delete leads"
   on leads for delete
   to authenticated
-  using (true);
+  using (is_authorized_user());
 
 -- EMAIL SEQUENCE LOG
 alter table email_sequence_log enable row level security;
 
-create policy "Authenticated users can read email logs"
+create policy "Authorized users can read email logs"
   on email_sequence_log for select
   to authenticated
-  using (true);
+  using (is_authorized_user());
 
-create policy "Authenticated users can insert email logs"
+create policy "Authorized users can insert email logs"
   on email_sequence_log for insert
   to authenticated
-  with check (true);
+  with check (is_authorized_user());
 
-create policy "Authenticated users can update email logs"
+create policy "Authorized users can update email logs"
   on email_sequence_log for update
   to authenticated
-  using (true)
-  with check (true);
+  using (is_authorized_user())
+  with check (is_authorized_user());
 
 -- NOTIFICATIONS
 alter table notifications enable row level security;
 
-create policy "Authenticated users can read notifications"
+create policy "Authorized users can read notifications"
   on notifications for select
   to authenticated
-  using (true);
+  using (is_authorized_user());
 
-create policy "Authenticated users can insert notifications"
+create policy "Authorized users can insert notifications"
   on notifications for insert
   to authenticated
-  with check (true);
+  with check (is_authorized_user());
 
-create policy "Authenticated users can update notifications"
+create policy "Authorized users can update notifications"
   on notifications for update
   to authenticated
-  using (true)
-  with check (true);
+  using (is_authorized_user())
+  with check (is_authorized_user());
 
 -- AD IMPORTS
 alter table ad_imports enable row level security;
 
-create policy "Authenticated users can read imports"
+create policy "Authorized users can read imports"
   on ad_imports for select
   to authenticated
-  using (true);
+  using (is_authorized_user());
 
-create policy "Authenticated users can insert imports"
+create policy "Authorized users can insert imports"
   on ad_imports for insert
   to authenticated
-  with check (true);
+  with check (is_authorized_user());
 
 -- EMAIL SEQUENCE SETTINGS
 alter table email_sequence_settings enable row level security;
 
-create policy "Authenticated users can read settings"
+create policy "Authorized users can read settings"
   on email_sequence_settings for select
   to authenticated
-  using (true);
+  using (is_authorized_user());
 
-create policy "Authenticated users can update settings"
+create policy "Authorized users can update settings"
   on email_sequence_settings for update
   to authenticated
-  using (true)
-  with check (true);
+  using (is_authorized_user())
+  with check (is_authorized_user());
 
 -- AUDIT LOG
 alter table lead_audit_log enable row level security;
 
-create policy "Authenticated users can read audit log"
+create policy "Authorized users can read audit log"
   on lead_audit_log for select
   to authenticated
-  using (true);
+  using (is_authorized_user());
 
--- Audit log is insert-only from triggers, no direct user writes needed
--- The trigger function runs as definer, bypassing RLS for inserts
+-- Audit log is insert-only from triggers (runs as definer, bypasses RLS)
 
 -- ============================================
 -- NOTE ON n8n ACCESS
@@ -335,3 +360,12 @@ create policy "Authenticated users can read audit log"
 -- The service_role key bypasses RLS entirely, allowing n8n to read/write
 -- leads, notifications, and email logs without being an authenticated user.
 -- NEVER expose the service_role key in the frontend — it is server-side only.
+
+-- ============================================
+-- SECURITY SETUP CHECKLIST
+-- ============================================
+-- 1. Disable public signups in Supabase Dashboard → Authentication → Settings
+-- 2. Create Forrest's account manually via Dashboard → Authentication → Users
+-- 3. Run: INSERT INTO allowed_crm_users (email) VALUES ('forrest@email.com');
+-- 4. Generate SERVICE_ROLE key for n8n (Dashboard → Settings → API)
+-- 5. Generate a strong webhook secret: openssl rand -hex 32

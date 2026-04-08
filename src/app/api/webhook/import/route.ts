@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { timingSafeEqual } from "crypto";
 
 const MAX_BODY_SIZE = 10 * 1024 * 1024; // 10 MB
 
@@ -24,10 +25,15 @@ function isValidWebhookUrl(url: string): boolean {
 }
 
 export async function POST(request: NextRequest) {
-  const authHeader = request.headers.get("x-webhook-secret");
-  const secret = process.env.N8N_WEBHOOK_SECRET;
+  const authHeader = request.headers.get("x-webhook-secret") || "";
+  const secret = process.env.N8N_WEBHOOK_SECRET || "";
 
-  if (!secret || authHeader !== secret) {
+  if (
+    !secret ||
+    !authHeader ||
+    secret.length !== authHeader.length ||
+    !timingSafeEqual(Buffer.from(secret), Buffer.from(authHeader))
+  ) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
