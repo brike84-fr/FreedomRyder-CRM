@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,10 +19,26 @@ export function LoginForm() {
   const [loading, setLoading] = useState(false);
   const [attempts, setAttempts] = useState(0);
   const [lockedUntil, setLockedUntil] = useState(0);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [now, setNow] = useState(0);
   const router = useRouter();
 
-  const secondsRemaining = Math.max(0, Math.ceil((lockedUntil - Date.now()) / 1000));
+  // Tick every second while locked so countdown updates
+  useEffect(() => {
+    if (lockedUntil === 0) return;
+    const interval = setInterval(() => {
+      const current = Date.now();
+      if (current >= lockedUntil) {
+        setLockedUntil(0);
+        clearInterval(interval);
+      } else {
+        setNow(current);
+      }
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [lockedUntil]);
+
+  const secondsRemaining =
+    lockedUntil === 0 ? 0 : Math.max(0, Math.ceil((lockedUntil - now) / 1000));
   const isLocked = secondsRemaining > 0;
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -47,21 +63,11 @@ export function LoginForm() {
       setAttempts(newAttempts);
 
       if (newAttempts >= MAX_ATTEMPTS) {
-        const lockSeconds = LOCKOUT_DURATIONS[Math.min(newAttempts, LOCKOUT_DURATIONS.length - 1)];
+        const lockSeconds =
+          LOCKOUT_DURATIONS[Math.min(newAttempts, LOCKOUT_DURATIONS.length - 1)];
         const until = Date.now() + lockSeconds * 1000;
         setLockedUntil(until);
         setError(`Too many failed attempts. Locked for ${lockSeconds}s.`);
-
-        // Force re-render to update countdown
-        if (timerRef.current) clearInterval(timerRef.current);
-        timerRef.current = setInterval(() => {
-          if (Date.now() >= until) {
-            if (timerRef.current) clearInterval(timerRef.current);
-            setLockedUntil(0);
-          } else {
-            setError(`Too many failed attempts. Try again in ${Math.ceil((until - Date.now()) / 1000)}s.`);
-          }
-        }, 1000);
       } else {
         setError(error.message);
       }
@@ -72,7 +78,6 @@ export function LoginForm() {
 
     setAttempts(0);
     setLockedUntil(0);
-    if (timerRef.current) clearInterval(timerRef.current);
     router.push("/");
     router.refresh();
   };

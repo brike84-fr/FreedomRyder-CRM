@@ -203,6 +203,30 @@ Add Bob's email to `FR-Weekly-Bob-Export.json`:
 
 ---
 
+## Step 9.5: Dead Man's Switch (healthchecks.io)
+
+**Why this matters:** the heartbeat monitor runs inside n8n, so if n8n dies entirely (Gmail disconnect, n8n.cloud outage, workflow deactivated by accident) the heartbeat alert dies with it. Forrest would get zero alerts. A dead man's switch runs OUTSIDE n8n and alerts Forrest **when it stops hearing from n8n**.
+
+1. Sign up for a free account at **https://healthchecks.io**
+2. Create a new check:
+   - Name: `Freedom Ryder CRM Heartbeat`
+   - Schedule: **Simple** → Period: `1 day`, Grace: `6 hours`
+3. Copy the **Ping URL** (looks like `https://hc-ping.com/abc-123-def-456`)
+4. In n8n, open the `FR - Heartbeat Monitor` workflow
+5. Click the **Ping healthchecks.io** node
+6. Replace `REPLACE_WITH_YOUR_UUID` with the UUID from your ping URL
+7. Alternatively (better): add an environment variable `HEALTHCHECKS_PING_URL` in n8n settings
+8. In healthchecks.io → **Integrations**, add an email notification to `forrest@freedomryder.com`
+
+**Result:** every day at 9 AM Pacific, the heartbeat workflow pings healthchecks.io. If the ping doesn't arrive within 30 hours (1 day + 6 hours grace), healthchecks.io emails Forrest that the CRM has stopped checking in. This alert travels through healthchecks.io's infrastructure, completely independent of n8n and Gmail. If the entire n8n instance is down, Forrest still gets the alert.
+
+**Verification:**
+1. In n8n, manually execute the heartbeat workflow
+2. Check healthchecks.io — the check should show "Up" with a recent ping time
+3. To test the alert: deactivate the heartbeat workflow, wait 30 hours, and verify Forrest receives the healthchecks.io email
+
+---
+
 ## Step 10: Test End-to-End
 
 Run these tests in order:

@@ -115,7 +115,6 @@ function normalizeRow(raw: Record<string, string>, source: ImportSource): Parsed
 export function ImportContent() {
   const [file, setFile] = useState<File | null>(null);
   const [rows, setRows] = useState<ParsedRow[]>([]);
-  const [headers, setHeaders] = useState<string[]>([]);
   const [imported, setImported] = useState(false);
   const [error, setError] = useState("");
   const [source, setSource] = useState<ImportSource>("auto");
@@ -157,7 +156,6 @@ export function ImportContent() {
       }
 
       const csvHeaders = result.meta.fields || [];
-      setHeaders(csvHeaders);
 
       const detected = detectSource(csvHeaders);
       setDetectedSource(detected);
@@ -198,10 +196,16 @@ export function ImportContent() {
         phone: r.phone,
         state: r.state,
         riding_goal: r.riding_goal,
+        notes: r.notes,
+        hubspot_status: r.hubspot_status || r.hubspot_lifecycle,
         inquiry_type: (r.inquiry_type === "veteran" ? "veteran" : "general") as "general" | "veteran",
       }));
 
-    const result = await importLeads(leadsToImport);
+    // Pass "hubspot" when HubSpot format is detected so the action knows
+    // not to tag as ad and not to restart the email sequence
+    const importType: "hubspot" | "ad" | "generic" =
+      activeSource === "hubspot" ? "hubspot" : "ad";
+    const result = await importLeads(leadsToImport, importType);
     setImporting(false);
     if ("error" in result) {
       setError(result.error);
@@ -280,14 +284,20 @@ export function ImportContent() {
               Preview — {rows.length} lead{rows.length !== 1 && "s"}
             </CardTitle>
             <div className="flex items-center gap-2">
-              {activeSource === "hubspot" && (
-                <Badge className="bg-forest-light text-forest-deep text-xs border-0">
-                  HubSpot format
+              {activeSource === "hubspot" ? (
+                <>
+                  <Badge className="bg-forest-light text-forest-deep text-xs border-0">
+                    HubSpot format
+                  </Badge>
+                  <Badge className="bg-sage-light text-forest text-xs border-0">
+                    Tagged: hubspot import
+                  </Badge>
+                </>
+              ) : (
+                <Badge className="bg-amber-light text-amber text-xs border-0">
+                  Tagged: ad lead
                 </Badge>
               )}
-              <Badge className="bg-amber-light text-amber text-xs border-0">
-                Will be tagged: ad lead
-              </Badge>
             </div>
           </CardHeader>
           <CardContent>
@@ -334,7 +344,7 @@ export function ImportContent() {
               </Button>
               <Button
                 variant="outline"
-                onClick={() => { setFile(null); setRows([]); setHeaders([]); setError(""); }}
+                onClick={() => { setFile(null); setRows([]); setError(""); }}
                 className="border-border"
               >
                 Cancel

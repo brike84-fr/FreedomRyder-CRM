@@ -85,7 +85,7 @@
       "parameters": {
         "mode": "runOnceForAllItems",
         "language": "javaScript",
-        "jsCode": "const leads = $('Get Active Sequence Leads').all();\nconst settingsItems = $('Get Sequence Settings').all();\nconst settings = settingsItems.length > 0 ? settingsItems[0].json : {};\nconst emailLogs = $('Get Email Logs').all();\nconst now = new Date();\n\n// Build a lookup: leadId -> set of steps with 'sent' status\nconst sentSteps = {};\nfor (const log of emailLogs) {\n  const l = log.json;\n  if (!sentSteps[l.lead_id]) sentSteps[l.lead_id] = new Set();\n  if (l.status === 'sent' || l.status === 'delivered' || l.status === 'opened' || l.status === 'replied') {\n    sentSteps[l.lead_id].add(l.step);\n  }\n}\n\nconst email2Due = [];\nconst email3Due = [];\n\nfor (const item of leads) {\n  const lead = item.json;\n  if (!lead.last_contacted_at) continue;\n  const lastContacted = new Date(lead.last_contacted_at);\n  const daysSinceContact = (now - lastContacted) / (1000 * 60 * 60 * 24);\n  const leadSent = sentSteps[lead.id] || new Set();\n\n  // Step 1 done, check if email 2 is due\n  if (lead.email_sequence_step === 1 && daysSinceContact >= (settings.email_2_delay_days || 3)) {\n    if (leadSent.has(1)) {\n      email2Due.push({ json: { ...lead, nextStep: 2, subject: settings.email_2_subject || 'Following Up — Freedom Ryder' } });\n    }\n  }\n\n  // Step 2 done, check if email 3 is due\n  if (lead.email_sequence_step === 2 && daysSinceContact >= (settings.email_3_delay_days || 7)) {\n    if (leadSent.has(2)) {\n      email3Due.push({ json: { ...lead, nextStep: 3, subject: settings.email_3_subject || 'One Last Thing — Freedom Ryder' } });\n    }\n  }\n}\n\nconst allDue = [...email2Due, ...email3Due];\n\nif (allDue.length === 0) {\n  return [{ json: { nothingDue: true } }];\n}\n\nreturn allDue;"
+        "jsCode": "const leads = $('Get Active Sequence Leads').all();\nconst settingsItems = $('Get Sequence Settings').all();\nconst settings = settingsItems.length > 0 ? settingsItems[0].json : {};\nconst emailLogs = $('Get Email Logs').all();\nconst now = new Date();\n\n// Build a lookup: leadId -> set of steps with 'sent' status\nconst sentSteps = {};\nfor (const log of emailLogs) {\n  const l = log.json;\n  if (!sentSteps[l.lead_id]) sentSteps[l.lead_id] = new Set();\n  if (l.status === 'sent' || l.status === 'delivered' || l.status === 'opened' || l.status === 'replied') {\n    sentSteps[l.lead_id].add(l.step);\n  }\n}\n\nconst email2Due = [];\nconst email3Due = [];\n\nfor (const item of leads) {\n  const lead = item.json;\n  if (!lead.last_contacted_at) continue;\n  const lastContacted = new Date(lead.last_contacted_at);\n  const daysSinceContact = (now - lastContacted) / (1000 * 60 * 60 * 24);\n  const leadSent = sentSteps[lead.id] || new Set();\n\n  // Step 1 done, check if email 2 is due\n  if (lead.email_sequence_step === 1 && daysSinceContact >= (settings.email_2_delay_days || 3)) {\n    if (leadSent.has(1)) {\n      email2Due.push({ json: { ...lead, nextStep: 2, subject: settings.email_2_subject || 'Following Up — Freedom Ryder' } });\n    }\n  }\n\n  // Step 2 done, check if email 3 is due\n  if (lead.email_sequence_step === 2 && daysSinceContact >= (settings.email_3_delay_days || 4)) {\n    if (leadSent.has(2)) {\n      email3Due.push({ json: { ...lead, nextStep: 3, subject: settings.email_3_subject || 'One Last Thing — Freedom Ryder' } });\n    }\n  }\n}\n\nconst allDue = [...email2Due, ...email3Due];\n\nif (allDue.length === 0) {\n  return [{ json: { nothingDue: true } }];\n}\n\nreturn allDue;"
       }
     },
     {
@@ -317,21 +317,21 @@
     },
     "Step 2 or Step 3?": {
       "main": [
-        [{ "node": "Send Follow-Up (Email 2)", "type": "main", "index": 0 }],
-        [{ "node": "Send Handoff Email (Email 3)", "type": "main", "index": 0 }]
+        [{ "node": "Log Email 2", "type": "main", "index": 0 }],
+        [{ "node": "Log Email 3", "type": "main", "index": 0 }]
       ]
     },
+    "Log Email 2": {
+      "main": [[{ "node": "Send Follow-Up (Email 2)", "type": "main", "index": 0 }]]
+    },
     "Send Follow-Up (Email 2)": {
-      "main": [[
-        { "node": "Update Lead → Step 2", "type": "main", "index": 0 },
-        { "node": "Log Email 2", "type": "main", "index": 0 }
-      ]]
+      "main": [[{ "node": "Update Lead → Step 2", "type": "main", "index": 0 }]]
+    },
+    "Log Email 3": {
+      "main": [[{ "node": "Send Handoff Email (Email 3)", "type": "main", "index": 0 }]]
     },
     "Send Handoff Email (Email 3)": {
-      "main": [[
-        { "node": "Update Lead → Step 3 + Assign Bob", "type": "main", "index": 0 },
-        { "node": "Log Email 3", "type": "main", "index": 0 }
-      ]]
+      "main": [[{ "node": "Update Lead → Step 3 + Assign Bob", "type": "main", "index": 0 }]]
     },
     "Update Lead → Step 3 + Assign Bob": {
       "main": [[{ "node": "Notify: Handoff to Bob", "type": "main", "index": 0 }]]

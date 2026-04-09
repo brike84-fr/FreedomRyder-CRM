@@ -174,9 +174,9 @@ create table ad_imports (
 
 create table email_sequence_settings (
   id int primary key default 1 check (id = 1), -- singleton row
-  email_1_delay_hours int not null default 0,      -- immediate
-  email_2_delay_days int not null default 3,       -- day 3-4
-  email_3_delay_days int not null default 7,       -- day 7-10 (handoff to Bob)
+  email_1_delay_hours int not null default 0,   -- immediate on form submit
+  email_2_delay_days int not null default 3,    -- days AFTER email 1 is sent
+  email_3_delay_days int not null default 4,    -- days AFTER email 2 is sent (handoff to Bob)
   email_1_subject varchar(200) not null default 'Thanks for Reaching Out!',
   email_2_subject varchar(200) not null default 'Following Up — Freedom Ryder',
   email_3_subject varchar(200) not null default 'One Last Thing — Freedom Ryder',

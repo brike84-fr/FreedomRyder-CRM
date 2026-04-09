@@ -5,7 +5,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { CheckCircle2, Mail, Clock, Tag, X, User, KeyRound } from "lucide-react";
@@ -59,11 +58,10 @@ export function SettingsContent({ settings, userEmail }: SettingsContentProps) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [sendingEmail, setSendingEmail] = useState(settings?.sending_email || "freedomryderusa@gmail.com");
-  const [sequenceEnabled, setSequenceEnabled] = useState(true);
 
   const [email1Delay, setEmail1Delay] = useState(String(settings?.email_1_delay_hours ?? 0));
   const [email2Delay, setEmail2Delay] = useState(String(settings?.email_2_delay_days ?? 3));
-  const [email3Delay, setEmail3Delay] = useState(String(settings?.email_3_delay_days ?? 7));
+  const [email3Delay, setEmail3Delay] = useState(String(settings?.email_3_delay_days ?? 4));
 
   const [email1Subject, setEmail1Subject] = useState(settings?.email_1_subject || "Thanks for Reaching Out!");
   const [email2Subject, setEmail2Subject] = useState(settings?.email_2_subject || "Following Up — Freedom Ryder");
@@ -79,7 +77,7 @@ export function SettingsContent({ settings, userEmail }: SettingsContentProps) {
       sending_email: sendingEmail,
       email_1_delay_hours: parseInt(email1Delay) || 0,
       email_2_delay_days: parseInt(email2Delay) || 3,
-      email_3_delay_days: parseInt(email3Delay) || 7,
+      email_3_delay_days: parseInt(email3Delay) || 4,
       email_1_subject: email1Subject,
       email_2_subject: email2Subject,
       email_3_subject: email3Subject,
@@ -211,14 +209,10 @@ export function SettingsContent({ settings, userEmail }: SettingsContentProps) {
               All automated emails will be sent from this address.
             </p>
           </div>
-          <div className="flex items-center gap-3">
-            <Switch
-              checked={sequenceEnabled}
-              onCheckedChange={setSequenceEnabled}
-            />
-            <Label className="text-sm text-ink">
-              Auto-start email sequence for new leads
-            </Label>
+          <div className="text-xs text-ink-muted bg-cream rounded-lg p-3 border border-border">
+            <strong className="text-ink">To pause all automation:</strong> deactivate the
+            &ldquo;FR - Email Sequence Manager&rdquo; workflow in n8n. To pause one lead, open
+            the lead and click Pause Sequence.
           </div>
         </CardContent>
       </Card>
@@ -273,6 +267,9 @@ export function SettingsContent({ settings, userEmail }: SettingsContentProps) {
                   className="mt-1 bg-cream border-border"
                   min="1"
                 />
+                <p className="text-[10px] text-ink-muted/70 mt-1">
+                  Fires N days after the auto-reply was sent.
+                </p>
               </div>
               <div>
                 <Label className="text-xs text-ink-muted">Subject Line</Label>
@@ -291,7 +288,7 @@ export function SettingsContent({ settings, userEmail }: SettingsContentProps) {
                 <Label className="text-sm font-medium text-ink">Handoff to Bob</Label>
               </div>
               <div>
-                <Label className="text-xs text-ink-muted">Delay (days after email 1)</Label>
+                <Label className="text-xs text-ink-muted">Delay (days after email 2)</Label>
                 <Input
                   type="number"
                   value={email3Delay}
@@ -299,6 +296,9 @@ export function SettingsContent({ settings, userEmail }: SettingsContentProps) {
                   className="mt-1 bg-cream border-border"
                   min="1"
                 />
+                <p className="text-[10px] text-ink-muted/70 mt-1">
+                  Fires N days after the follow-up was sent, then assigns to Bob.
+                </p>
               </div>
               <div>
                 <Label className="text-xs text-ink-muted">Subject Line</Label>

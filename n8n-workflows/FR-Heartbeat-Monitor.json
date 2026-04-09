@@ -143,6 +143,21 @@
           "appendAttribution": false
         }
       }
+    },
+    {
+      "id": "ping_healthchecks",
+      "name": "Ping healthchecks.io (Dead Man's Switch)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1050, 500],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.HEALTHCHECKS_PING_URL || 'https://hc-ping.com/REPLACE_WITH_YOUR_UUID' }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "continueOnFail": true
     }
   ],
   "connections": {
@@ -167,8 +182,13 @@
     },
     "Any Issues?": {
       "main": [
-        [{ "node": "Alert Forrest", "type": "main", "index": 0 }],
-        []
+        [
+          { "node": "Alert Forrest", "type": "main", "index": 0 },
+          { "node": "Ping healthchecks.io (Dead Man's Switch)", "type": "main", "index": 0 }
+        ],
+        [
+          { "node": "Ping healthchecks.io (Dead Man's Switch)", "type": "main", "index": 0 }
+        ]
       ]
     }
   },

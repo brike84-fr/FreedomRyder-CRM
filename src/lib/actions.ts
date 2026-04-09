@@ -122,6 +122,20 @@ export async function updateSettings(settings: {
 // LEAD IMPORT
 // ============================================
 
+// Map HubSpot lead status text to our lead_status enum
+function mapHubspotStatus(
+  status: string | undefined
+): "new" | "contacted" | "replied" | "qualified" | "closed_won" | "closed_lost" {
+  if (!status) return "new";
+  const s = status.toLowerCase().trim();
+  if (s.includes("customer") || s.includes("closed won") || s === "won") return "closed_won";
+  if (s.includes("unqualified") || s.includes("closed lost") || s === "lost") return "closed_lost";
+  if (s.includes("qualified") || s.includes("opportunity")) return "qualified";
+  if (s.includes("replied") || s.includes("engaged")) return "replied";
+  if (s.includes("contacted") || s.includes("in progress") || s.includes("attempted")) return "contacted";
+  return "new";
+}
+
 export async function importLeads(
   leads: Array<{
     full_name: string;
@@ -131,12 +145,19 @@ export async function importLeads(
     state?: string;
     riding_goal?: string;
     inquiry_type?: "general" | "veteran";
-  }>
+    notes?: string;
+    hubspot_status?: string;
+  }>,
+  sourceType: "hubspot" | "ad" | "generic" = "ad"
 ): Promise<ActionResult<{ count: number }>> {
   const supabase = await createClient();
 
   if (leads.length === 0) return { error: "No leads to import" };
   if (leads.length > 1000) return { error: "Too many leads (max 1000 per import)" };
+
+  // HubSpot imports: real CRM data, don't tag as ad, don't start email sequence
+  // Ad/Generic imports: new leads from ad platforms, tag + sequence
+  const isHubspot = sourceType === "hubspot";
 
   const rows = leads.map((l) => ({
     full_name: l.full_name.slice(0, 200),
@@ -145,12 +166,14 @@ export async function importLeads(
     phone: (l.phone || "").slice(0, 30),
     state: (l.state || "").slice(0, 100),
     riding_goal: (l.riding_goal || "").slice(0, 500),
+    notes: (l.notes || "").slice(0, 5000),
     inquiry_type: l.inquiry_type || "general",
-    source: "ad" as const,
-    status: "new" as const,
+    source: isHubspot ? ("referral" as const) : ("ad" as const),
+    status: isHubspot ? mapHubspotStatus(l.hubspot_status) : ("new" as const),
     temperature: "medium" as const,
-    tags: ["ad lead"],
-    email_sequence_active: true,
+    tags: isHubspot ? ["hubspot import"] : ["ad lead"],
+    // HubSpot imports are existing contacts, don't restart the email sequence
+    email_sequence_active: !isHubspot,
     email_sequence_step: 0,
   }));
 
@@ -166,7 +189,7 @@ export async function importLeads(
 
   // Log import
   await supabase.from("ad_imports").insert({
-    file_name: `frontend-import-${new Date().toISOString()}.csv`,
+    file_name: `${sourceType}-import-${new Date().toISOString()}.csv`,
     lead_count: data?.length || 0,
     imported_by: "forrest",
   });

@@ -250,6 +250,9 @@
       ]
     },
     "Insert Lead into Supabase": {
+      "main": [[{ "node": "Log Email 1", "type": "main", "index": 0 }]]
+    },
+    "Log Email 1": {
       "main": [[{ "node": "Veteran or General?", "type": "main", "index": 0 }]]
     },
     "Veteran or General?": {
@@ -265,10 +268,7 @@
       "main": [[{ "node": "Mark Step 1 Sent", "type": "main", "index": 0 }]]
     },
     "Mark Step 1 Sent": {
-      "main": [[
-        { "node": "Log Email 1", "type": "main", "index": 0 },
-        { "node": "Notify: New Lead", "type": "main", "index": 0 }
-      ]]
+      "main": [[{ "node": "Notify: New Lead", "type": "main", "index": 0 }]]
     }
   },
   "settings": {
