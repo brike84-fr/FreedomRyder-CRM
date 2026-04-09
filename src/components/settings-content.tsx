@@ -8,11 +8,53 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle2, Mail, Clock, Tag, X } from "lucide-react";
+import { CheckCircle2, Mail, Clock, Tag, X, User, KeyRound } from "lucide-react";
 import { updateSettings } from "@/lib/actions";
+import { createClient } from "@/lib/supabase/client";
 import type { EmailSequenceSettings } from "@/lib/data";
 
-export function SettingsContent({ settings }: { settings: EmailSequenceSettings | null }) {
+interface SettingsContentProps {
+  settings: EmailSequenceSettings | null;
+  userEmail: string;
+}
+
+export function SettingsContent({ settings, userEmail }: SettingsContentProps) {
+  // Password change state
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordSaving, setPasswordSaving] = useState(false);
+  const [passwordMessage, setPasswordMessage] = useState("");
+  const [passwordError, setPasswordError] = useState("");
+
+  const handlePasswordChange = async () => {
+    setPasswordError("");
+    setPasswordMessage("");
+
+    if (newPassword.length < 8) {
+      setPasswordError("Password must be at least 8 characters");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordError("Passwords don't match");
+      return;
+    }
+
+    setPasswordSaving(true);
+    const supabase = createClient();
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    setPasswordSaving(false);
+
+    if (error) {
+      setPasswordError(error.message);
+      return;
+    }
+
+    setPasswordMessage("Password updated");
+    setNewPassword("");
+    setConfirmPassword("");
+    setTimeout(() => setPasswordMessage(""), 3000);
+  };
+
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -71,6 +113,80 @@ export function SettingsContent({ settings }: { settings: EmailSequenceSettings 
           Configure email sequences, tags, and system preferences.
         </p>
       </div>
+
+      {/* Account */}
+      <Card className="bg-warm-white border-border shadow-none">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-semibold text-ink-light uppercase tracking-wider flex items-center gap-2">
+            <User className="w-4 h-4" />
+            Account
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <Label className="text-sm text-ink">Signed in as</Label>
+            <p className="text-sm text-ink-muted mt-1">{userEmail || "Not signed in"}</p>
+          </div>
+
+          <Separator className="bg-border" />
+
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <KeyRound className="w-4 h-4 text-ink-muted" />
+              <Label className="text-sm text-ink font-medium">Change Password</Label>
+            </div>
+            <div className="space-y-3 max-w-md">
+              <div>
+                <Label htmlFor="new-password" className="text-xs text-ink-muted">
+                  New password
+                </Label>
+                <Input
+                  id="new-password"
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value.slice(0, 72))}
+                  className="mt-1 bg-cream border-border"
+                  placeholder="At least 8 characters"
+                  maxLength={72}
+                  autoComplete="new-password"
+                />
+              </div>
+              <div>
+                <Label htmlFor="confirm-password" className="text-xs text-ink-muted">
+                  Confirm new password
+                </Label>
+                <Input
+                  id="confirm-password"
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value.slice(0, 72))}
+                  className="mt-1 bg-cream border-border"
+                  placeholder="Type it again"
+                  maxLength={72}
+                  autoComplete="new-password"
+                />
+              </div>
+              <div className="flex items-center gap-3">
+                <Button
+                  onClick={handlePasswordChange}
+                  disabled={passwordSaving || !newPassword || !confirmPassword}
+                  className="bg-forest text-cream hover:bg-forest-deep"
+                >
+                  {passwordSaving ? "Updating..." : "Update Password"}
+                </Button>
+                {passwordMessage && (
+                  <span className="flex items-center gap-1.5 text-sm text-forest">
+                    <CheckCircle2 className="w-4 h-4" /> {passwordMessage}
+                  </span>
+                )}
+                {passwordError && (
+                  <span className="text-sm text-rust">{passwordError}</span>
+                )}
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Email settings */}
       <Card className="bg-warm-white border-border shadow-none">
