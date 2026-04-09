@@ -137,7 +137,8 @@
         "emailType": "text",
         "message": "={{ 'Hi ' + $json.first_name + ',\\n\\nJust following up on your inquiry about Freedom Ryder Handcycles. I wanted to make sure you got all the info you need.\\n\\nHave any questions about our handcycles, sizing, or' + ($json.inquiry_type === 'veteran' ? ' VA funding options' : ' pricing') + '? Happy to hop on a quick call or answer over email.\\n\\nHere\\'s that video again if you missed it: https://www.youtube.com/watch?v=hcmka1TgSVM&t=140s\\n\\nThanks,\\n\\nMike\\n503-692-1029' }}",
         "options": {
-          "appendAttribution": false
+          "appendAttribution": false,
+          "ccList": "forrest@freedomryder.com"
         }
       }
     },
@@ -156,7 +157,8 @@
         "emailType": "text",
         "message": "={{ 'Hi ' + $json.first_name + ',\\n\\nI wanted to reach out one more time — I know life gets busy!\\n\\nI\\'m connecting you with Bob, our sales specialist. He\\'s great at helping folks find the right handcycle setup' + ($json.inquiry_type === 'veteran' ? ' and navigate VA funding' : '') + '.\\n\\nBob will be reaching out to you shortly. In the meantime, feel free to reply here or call us directly.\\n\\nThanks for your interest in Freedom Ryder!\\n\\nMike\\n503-692-1029' }}",
         "options": {
-          "appendAttribution": false
+          "appendAttribution": false,
+          "ccList": "forrest@freedomryder.com"
         }
       }
     },

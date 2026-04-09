@@ -236,8 +236,8 @@ create table allowed_crm_users (
   email text primary key
 );
 
--- Insert authorized users (add Forrest's email after account creation)
--- insert into allowed_crm_users (email) values ('forrest@freedomryder.com');
+-- Insert authorized users
+insert into allowed_crm_users (email) values ('forrest@freedomryder.com');
 
 -- Helper function: check if current user is authorized
 create or replace function is_authorized_user()

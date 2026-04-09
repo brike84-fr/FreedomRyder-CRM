@@ -1,10 +1,12 @@
 import { AppShell } from "@/components/app-shell";
 import { SettingsContent } from "@/components/settings-content";
+import { getSettings } from "@/lib/data";
 
-export default function SettingsPage() {
+export default async function SettingsPage() {
+  const settings = await getSettings();
   return (
     <AppShell>
-      <SettingsContent />
+      <SettingsContent settings={settings} />
     </AppShell>
   );
 }

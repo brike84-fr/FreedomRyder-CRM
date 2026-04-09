@@ -126,10 +126,13 @@
       "parameters": {
         "resource": "message",
         "operation": "send",
-        "sendTo": "<<FORREST_EMAIL>>",
+        "sendTo": "forrest@freedomryder.com",
         "subject": "CRM Health Alert — Issues Detected",
         "emailType": "html",
-        "message": "={{ $json.html }}"
+        "message": "={{ $json.html }}",
+        "options": {
+          "appendAttribution": false
+        }
       }
     },
     {

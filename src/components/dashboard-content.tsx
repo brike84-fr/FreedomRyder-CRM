@@ -2,7 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { mockLeads, mockStats, mockNotifications } from "@/lib/mock-data";
+import type { Lead, Notification, DashboardStats } from "@/lib/types";
 import {
   Users,
   UserPlus,
@@ -39,12 +39,18 @@ const tempColors: Record<string, string> = {
   cold: "bg-stone-light text-ink-muted",
 };
 
-export function DashboardContent() {
-  const recentLeads = [...mockLeads]
-    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-    .slice(0, 5);
+interface DashboardContentProps {
+  stats: DashboardStats;
+  recentLeads: Lead[];
+  notifications: Notification[];
+}
 
-  const recentNotifications = mockNotifications.slice(0, 4);
+export function DashboardContent({
+  stats,
+  recentLeads,
+  notifications,
+}: DashboardContentProps) {
+  const recentNotifications = notifications.slice(0, 4);
 
   return (
     <div className="space-y-8">
@@ -63,33 +69,33 @@ export function DashboardContent() {
         <StatCard
           icon={<Users className="w-4 h-4" />}
           label="Total Leads"
-          value={mockStats.total_leads}
+          value={stats.total_leads}
         />
         <StatCard
           icon={<UserPlus className="w-4 h-4" />}
           label="New This Week"
-          value={mockStats.new_leads_this_week}
+          value={stats.new_leads_this_week}
           accent
         />
         <StatCard
           icon={<Mail className="w-4 h-4" />}
           label="Active Sequences"
-          value={mockStats.active_sequences}
+          value={stats.active_sequences}
         />
         <StatCard
           icon={<Megaphone className="w-4 h-4" />}
           label="Ad Leads"
-          value={mockStats.ad_leads}
+          value={stats.ad_leads}
         />
         <StatCard
           icon={<Trophy className="w-4 h-4" />}
           label="Conversions"
-          value={mockStats.conversions}
+          value={stats.conversions}
         />
         <StatCard
           icon={<TrendingUp className="w-4 h-4" />}
           label="Conv. Rate"
-          value={`${mockStats.roas_ratio}%`}
+          value={`${stats.roas_ratio}%`}
         />
       </div>
 
@@ -102,7 +108,7 @@ export function DashboardContent() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2.5">
-            {Object.entries(mockStats.leads_by_status).map(([status, count]) => (
+            {Object.entries(stats.leads_by_status).map(([status, count]) => (
               <div key={status} className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Badge
@@ -180,19 +186,19 @@ export function DashboardContent() {
             <div className="grid grid-cols-3 gap-4">
               <div className="text-center p-4 bg-cream rounded-lg">
                 <p className="font-[var(--font-heading)] text-3xl text-ink">
-                  {mockStats.ad_leads}
+                  {stats.ad_leads}
                 </p>
                 <p className="text-xs text-ink-muted mt-1">Ad Leads</p>
               </div>
               <div className="text-center p-4 bg-cream rounded-lg">
                 <p className="font-[var(--font-heading)] text-3xl text-forest">
-                  {mockStats.conversions}
+                  {stats.conversions}
                 </p>
                 <p className="text-xs text-ink-muted mt-1">Conversions</p>
               </div>
               <div className="text-center p-4 bg-cream rounded-lg">
                 <p className="font-[var(--font-heading)] text-3xl text-rust">
-                  {mockStats.roas_ratio}%
+                  {stats.roas_ratio}%
                 </p>
                 <p className="text-xs text-ink-muted mt-1">Conv. Rate</p>
               </div>

@@ -19,7 +19,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { mockLeads } from "@/lib/mock-data";
 import type { Lead, LeadStatus, LeadTemperature, LeadSource } from "@/lib/types";
 import { Search, ArrowUpDown, Mail, ChevronRight, GripVertical } from "lucide-react";
 import { formatDateShort } from "@/lib/format-date";
@@ -51,7 +50,7 @@ const tempColors: Record<LeadTemperature, string> = {
 type SortField = "full_name" | "created_at" | "status" | "temperature" | "source" | "manual";
 type SortDir = "asc" | "desc";
 
-export function PipelineContent() {
+export function PipelineContent({ leads: initialLeads }: { leads: Lead[] }) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<LeadStatus | "all">("all");
   const [tempFilter, setTempFilter] = useState<LeadTemperature | "all">("all");
@@ -60,7 +59,7 @@ export function PipelineContent() {
   const [sortDir, setSortDir] = useState<SortDir>("desc");
 
   // Manual order state
-  const [manualOrder, setManualOrder] = useState<string[]>(mockLeads.map((l) => l.id));
+  const [manualOrder, setManualOrder] = useState<string[]>(initialLeads.map((l) => l.id));
 
   // Drag state
   const [draggedId, setDraggedId] = useState<string | null>(null);
@@ -84,7 +83,7 @@ export function PipelineContent() {
   const isManualMode = sortField === "manual" && !search && statusFilter === "all" && tempFilter === "all" && sourceFilter === "all";
 
   const filtered = useMemo(() => {
-    let leads = [...mockLeads];
+    let leads = [...initialLeads];
 
     if (search) {
       const q = search.toLowerCase();
@@ -119,7 +118,7 @@ export function PipelineContent() {
     }
 
     return leads;
-  }, [search, statusFilter, tempFilter, sourceFilter, sortField, sortDir, manualOrder]);
+  }, [search, statusFilter, tempFilter, sourceFilter, sortField, sortDir, manualOrder, initialLeads]);
 
   const handleDragStart = useCallback((e: React.DragEvent, leadId: string) => {
     setDraggedId(leadId);

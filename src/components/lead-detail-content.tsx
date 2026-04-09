@@ -13,8 +13,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { mockLeads, mockEmailLogs } from "@/lib/mock-data";
-import type { LeadStatus, LeadTemperature } from "@/lib/types";
+import { updateLead, pauseLeadSequence } from "@/lib/actions";
+import type { Lead, EmailSequenceLog, LeadStatus, LeadTemperature } from "@/lib/types";
 import {
   ArrowLeft,
   Mail,
@@ -69,13 +69,55 @@ const emailLogStatusIcons: Record<string, React.ReactNode> = {
   bounced: <Mail className="w-3.5 h-3.5 text-red-500" />,
 };
 
-export function LeadDetailContent({ leadId }: { leadId: string }) {
-  const lead = mockLeads.find((l) => l.id === leadId);
-  const emailLogs = mockEmailLogs.filter((e) => e.lead_id === leadId);
+interface LeadDetailContentProps {
+  leadId: string;
+  lead: Lead | null;
+  emailLogs: EmailSequenceLog[];
+}
 
+export function LeadDetailContent({ leadId, lead, emailLogs }: LeadDetailContentProps) {
   const [status, setStatus] = useState<LeadStatus>(lead?.status || "new");
   const [temperature, setTemperature] = useState<LeadTemperature>(lead?.temperature || "medium");
+  const [assignedTo, setAssignedTo] = useState(lead?.assigned_to || "");
   const [notes, setNotes] = useState(lead?.notes || "");
+  const [saving, setSaving] = useState(false);
+  const [savedMessage, setSavedMessage] = useState("");
+
+  const handleSaveChanges = async () => {
+    setSaving(true);
+    const result = await updateLead(leadId, {
+      status,
+      temperature,
+      assigned_to: assignedTo === "unassigned" ? "" : assignedTo,
+    });
+    setSaving(false);
+    if ("error" in result) {
+      setSavedMessage(result.error);
+    } else {
+      setSavedMessage("Saved");
+      setTimeout(() => setSavedMessage(""), 2000);
+    }
+  };
+
+  const handleSaveNotes = async () => {
+    setSaving(true);
+    const result = await updateLead(leadId, { notes });
+    setSaving(false);
+    if ("error" in result) {
+      setSavedMessage(result.error);
+    } else {
+      setSavedMessage("Notes saved");
+      setTimeout(() => setSavedMessage(""), 2000);
+    }
+  };
+
+  const handlePauseSequence = async () => {
+    setSaving(true);
+    await pauseLeadSequence(leadId);
+    setSaving(false);
+    setSavedMessage("Sequence paused");
+    setTimeout(() => setSavedMessage(""), 2000);
+  };
 
   if (!lead) {
     return (
@@ -168,7 +210,7 @@ export function LeadDetailContent({ leadId }: { leadId: string }) {
               </div>
               <div>
                 <label className="text-xs text-ink-muted mb-1 block">Assign to</label>
-                <Select defaultValue={lead.assigned_to || "unassigned"}>
+                <Select value={assignedTo || "unassigned"} onValueChange={(v) => setAssignedTo(v || "")}>
                   <SelectTrigger className="bg-cream border-border">
                     <SelectValue />
                   </SelectTrigger>
@@ -179,9 +221,16 @@ export function LeadDetailContent({ leadId }: { leadId: string }) {
                   </SelectContent>
                 </Select>
               </div>
-              <Button className="w-full bg-forest text-cream hover:bg-forest-deep mt-2">
-                Save Changes
+              <Button
+                onClick={handleSaveChanges}
+                disabled={saving}
+                className="w-full bg-forest text-cream hover:bg-forest-deep mt-2"
+              >
+                {saving ? "Saving..." : "Save Changes"}
               </Button>
+              {savedMessage && (
+                <p className="text-xs text-forest text-center mt-1">{savedMessage}</p>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -236,7 +285,12 @@ export function LeadDetailContent({ leadId }: { leadId: string }) {
               )}
 
               {lead.email_sequence_active && (
-                <Button variant="outline" className="mt-4 border-rust text-rust hover:bg-rust-light">
+                <Button
+                  variant="outline"
+                  onClick={handlePauseSequence}
+                  disabled={saving}
+                  className="mt-4 border-rust text-rust hover:bg-rust-light"
+                >
                   Pause Sequence
                 </Button>
               )}
@@ -257,8 +311,12 @@ export function LeadDetailContent({ leadId }: { leadId: string }) {
                 placeholder="Add notes about this lead..."
                 maxLength={5000}
               />
-              <Button className="mt-3 bg-forest text-cream hover:bg-forest-deep">
-                Save Notes
+              <Button
+                onClick={handleSaveNotes}
+                disabled={saving}
+                className="mt-3 bg-forest text-cream hover:bg-forest-deep"
+              >
+                {saving ? "Saving..." : "Save Notes"}
               </Button>
             </CardContent>
           </Card>

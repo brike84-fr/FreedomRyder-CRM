@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from "react";
 import Papa from "papaparse";
+import { importLeads } from "@/lib/actions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -182,8 +183,31 @@ export function ImportContent() {
     reader.readAsText(f);
   }, [source]);
 
-  const handleImport = () => {
-    // In production this would POST to Supabase
+  const [importing, setImporting] = useState(false);
+  const [importedCount, setImportedCount] = useState(0);
+
+  const handleImport = async () => {
+    setImporting(true);
+    setError("");
+    const leadsToImport = rows
+      .filter((r) => r.email)
+      .map((r) => ({
+        full_name: r.full_name || r.email.split("@")[0],
+        first_name: r.first_name || r.full_name?.split(" ")[0] || "",
+        email: r.email,
+        phone: r.phone,
+        state: r.state,
+        riding_goal: r.riding_goal,
+        inquiry_type: (r.inquiry_type === "veteran" ? "veteran" : "general") as "general" | "veteran",
+      }));
+
+    const result = await importLeads(leadsToImport);
+    setImporting(false);
+    if ("error" in result) {
+      setError(result.error);
+      return;
+    }
+    setImportedCount(result.count || 0);
     setImported(true);
   };
 
@@ -303,9 +327,10 @@ export function ImportContent() {
             <div className="mt-4 flex gap-3">
               <Button
                 onClick={handleImport}
+                disabled={importing}
                 className="bg-forest text-cream hover:bg-forest-deep"
               >
-                Import {rows.length} Lead{rows.length !== 1 && "s"}
+                {importing ? "Importing..." : `Import ${rows.length} Lead${rows.length !== 1 ? "s" : ""}`}
               </Button>
               <Button
                 variant="outline"
@@ -326,7 +351,8 @@ export function ImportContent() {
             <CheckCircle2 className="w-6 h-6 text-forest" />
             <div>
               <p className="text-sm font-medium text-forest-deep">
-                Successfully imported {rows.length} lead{rows.length !== 1 && "s"}
+                Successfully imported {importedCount} lead{importedCount !== 1 && "s"}
+                {importedCount < rows.length && ` (${rows.length - importedCount} skipped as duplicates)`}
               </p>
               <p className="text-xs text-forest">
                 All leads tagged as &ldquo;ad lead&rdquo; and added to the pipeline.

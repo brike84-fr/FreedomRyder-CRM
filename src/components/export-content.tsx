@@ -12,13 +12,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { mockLeads } from "@/lib/mock-data";
+import type { Lead } from "@/lib/types";
 import { Download, FileSpreadsheet, CheckCircle2 } from "lucide-react";
 
-export function ExportContent() {
+export function ExportContent({ bobsLeads }: { bobsLeads: Lead[] }) {
   const [exported, setExported] = useState(false);
-
-  const bobsLeads = mockLeads.filter((l) => l.assigned_to === "bob");
 
   const handleExport = () => {
     // Build CSV

@@ -9,26 +9,46 @@ import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { CheckCircle2, Mail, Clock, Tag, X } from "lucide-react";
+import { updateSettings } from "@/lib/actions";
+import type { EmailSequenceSettings } from "@/lib/data";
 
-export function SettingsContent() {
+export function SettingsContent({ settings }: { settings: EmailSequenceSettings | null }) {
   const [saved, setSaved] = useState(false);
-  const [sendingEmail, setSendingEmail] = useState("mike@freedomryder.com");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [sendingEmail, setSendingEmail] = useState(settings?.sending_email || "freedomryderusa@gmail.com");
   const [sequenceEnabled, setSequenceEnabled] = useState(true);
 
-  const [email1Delay, setEmail1Delay] = useState("0");
-  const [email2Delay, setEmail2Delay] = useState("3");
-  const [email3Delay, setEmail3Delay] = useState("7");
+  const [email1Delay, setEmail1Delay] = useState(String(settings?.email_1_delay_hours ?? 0));
+  const [email2Delay, setEmail2Delay] = useState(String(settings?.email_2_delay_days ?? 3));
+  const [email3Delay, setEmail3Delay] = useState(String(settings?.email_3_delay_days ?? 7));
 
-  const [email1Subject, setEmail1Subject] = useState("Thanks for Reaching Out!");
-  const [email2Subject, setEmail2Subject] = useState("Following Up — Freedom Ryder");
-  const [email3Subject, setEmail3Subject] = useState("One Last Thing — Freedom Ryder");
+  const [email1Subject, setEmail1Subject] = useState(settings?.email_1_subject || "Thanks for Reaching Out!");
+  const [email2Subject, setEmail2Subject] = useState(settings?.email_2_subject || "Following Up — Freedom Ryder");
+  const [email3Subject, setEmail3Subject] = useState(settings?.email_3_subject || "One Last Thing — Freedom Ryder");
 
   const [tags, setTags] = useState(["hot", "medium", "cold", "veteran", "ad lead", "bob's lead"]);
   const [newTag, setNewTag] = useState("");
 
-  const handleSave = () => {
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+  const handleSave = async () => {
+    setSaving(true);
+    setError("");
+    const result = await updateSettings({
+      sending_email: sendingEmail,
+      email_1_delay_hours: parseInt(email1Delay) || 0,
+      email_2_delay_days: parseInt(email2Delay) || 3,
+      email_3_delay_days: parseInt(email3Delay) || 7,
+      email_1_subject: email1Subject,
+      email_2_subject: email2Subject,
+      email_3_subject: email3Subject,
+    });
+    setSaving(false);
+    if ("error" in result) {
+      setError(result.error);
+    } else {
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    }
   };
 
   const addTag = () => {
@@ -224,14 +244,15 @@ export function SettingsContent() {
 
       {/* Save */}
       <div className="flex items-center gap-3">
-        <Button onClick={handleSave} className="bg-forest text-cream hover:bg-forest-deep">
-          Save All Settings
+        <Button onClick={handleSave} disabled={saving} className="bg-forest text-cream hover:bg-forest-deep">
+          {saving ? "Saving..." : "Save All Settings"}
         </Button>
         {saved && (
           <span className="flex items-center gap-1.5 text-sm text-forest">
             <CheckCircle2 className="w-4 h-4" /> Settings saved
           </span>
         )}
+        {error && <span className="text-sm text-rust">{error}</span>}
       </div>
     </div>
   );

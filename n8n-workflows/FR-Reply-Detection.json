@@ -186,10 +186,13 @@
       "parameters": {
         "resource": "message",
         "operation": "send",
-        "sendTo": "<<FORREST_EMAIL>>",
+        "sendTo": "forrest@freedomryder.com",
         "subject": "={{ '🔔 Lead Replied: ' + $('Find Lead in Supabase').first().json.full_name }}",
         "emailType": "text",
-        "message": "={{ $('Find Lead in Supabase').first().json.full_name + ' just replied to an automated email.\\n\\nTheir email sequence has been automatically stopped.\\n\\nPreview: ' + $('Extract Sender Email').first().json.snippet.substring(0, 200) + '\\n\\nCheck your CRM for details.' }}"
+        "message": "={{ $('Find Lead in Supabase').first().json.full_name + ' just replied to an automated email.\\n\\nTheir email sequence has been automatically stopped.\\n\\nPreview: ' + $('Extract Sender Email').first().json.snippet.substring(0, 200) + '\\n\\nCheck your CRM for details.' }}",
+        "options": {
+          "appendAttribution": false
+        }
       }
     }
   ],

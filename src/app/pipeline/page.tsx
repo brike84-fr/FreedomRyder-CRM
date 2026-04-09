@@ -1,10 +1,12 @@
 import { AppShell } from "@/components/app-shell";
 import { PipelineContent } from "@/components/pipeline-content";
+import { getAllLeads } from "@/lib/data";
 
-export default function PipelinePage() {
+export default async function PipelinePage() {
+  const leads = await getAllLeads();
   return (
     <AppShell>
-      <PipelineContent />
+      <PipelineContent leads={leads} />
     </AppShell>
   );
 }
