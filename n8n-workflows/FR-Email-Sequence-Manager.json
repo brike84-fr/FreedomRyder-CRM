@@ -25,22 +25,26 @@
       "typeVersion": 1,
       "position": [250, 300],
       "parameters": {
+        "resource": "row",
         "operation": "getAll",
         "tableId": "leads",
+        "returnAll": true,
+        "filterType": "manual",
+        "matchType": "allFilters",
         "filters": {
           "conditions": [
             {
               "keyName": "email_sequence_active",
+              "condition": "eq",
               "keyValue": "true"
             },
             {
               "keyName": "email_sequence_step",
-              "keyValue": "0",
-              "condition": "gt"
+              "condition": "gt",
+              "keyValue": "0"
             }
           ]
-        },
-        "returnAll": true
+        }
       }
     },
     {
@@ -50,10 +54,12 @@
       "typeVersion": 1,
       "position": [250, 500],
       "parameters": {
+        "resource": "row",
         "operation": "getAll",
         "tableId": "email_sequence_settings",
         "returnAll": false,
-        "limit": 1
+        "limit": 1,
+        "filterType": "none"
       }
     },
     {
@@ -63,9 +69,11 @@
       "typeVersion": 1,
       "position": [250, 700],
       "parameters": {
+        "resource": "row",
         "operation": "getAll",
         "tableId": "email_sequence_log",
-        "returnAll": true
+        "returnAll": true,
+        "filterType": "none"
       }
     },
     {
@@ -77,7 +85,7 @@
       "parameters": {
         "mode": "runOnceForAllItems",
         "language": "javaScript",
-        "jsCode": "const leads = $('Get Active Sequence Leads').all();\nconst settings = $('Get Sequence Settings').first().json;\nconst emailLogs = $('Get Email Logs').all();\nconst now = new Date();\n\n// Build a lookup: leadId -> set of steps with 'sent' status\nconst sentSteps = {};\nfor (const log of emailLogs) {\n  const l = log.json;\n  if (!sentSteps[l.lead_id]) sentSteps[l.lead_id] = new Set();\n  if (l.status === 'sent' || l.status === 'delivered' || l.status === 'opened' || l.status === 'replied') {\n    sentSteps[l.lead_id].add(l.step);\n  }\n}\n\nconst email2Due = [];\nconst email3Due = [];\n\nfor (const item of leads) {\n  const lead = item.json;\n  const lastContacted = new Date(lead.last_contacted_at);\n  const daysSinceContact = (now - lastContacted) / (1000 * 60 * 60 * 24);\n  const leadSent = sentSteps[lead.id] || new Set();\n\n  // Step 1 done, check if email 2 is due\n  // SAFETY: only send email 2 if email 1 was actually sent\n  if (lead.email_sequence_step === 1 && daysSinceContact >= (settings.email_2_delay_days || 3)) {\n    if (leadSent.has(1)) {\n      email2Due.push({ json: { ...lead, nextStep: 2, subject: settings.email_2_subject || 'Following Up — Freedom Ryder' } });\n    }\n  }\n\n  // Step 2 done, check if email 3 is due\n  // SAFETY: only send email 3 if email 2 was actually sent\n  if (lead.email_sequence_step === 2 && daysSinceContact >= (settings.email_3_delay_days || 7)) {\n    if (leadSent.has(2)) {\n      email3Due.push({ json: { ...lead, nextStep: 3, subject: settings.email_3_subject || 'One Last Thing — Freedom Ryder' } });\n    }\n  }\n}\n\nconst allDue = [...email2Due, ...email3Due];\n\nif (allDue.length === 0) {\n  return [{ json: { nothingDue: true } }];\n}\n\nreturn allDue;"
+        "jsCode": "const leads = $('Get Active Sequence Leads').all();\nconst settingsItems = $('Get Sequence Settings').all();\nconst settings = settingsItems.length > 0 ? settingsItems[0].json : {};\nconst emailLogs = $('Get Email Logs').all();\nconst now = new Date();\n\n// Build a lookup: leadId -> set of steps with 'sent' status\nconst sentSteps = {};\nfor (const log of emailLogs) {\n  const l = log.json;\n  if (!sentSteps[l.lead_id]) sentSteps[l.lead_id] = new Set();\n  if (l.status === 'sent' || l.status === 'delivered' || l.status === 'opened' || l.status === 'replied') {\n    sentSteps[l.lead_id].add(l.step);\n  }\n}\n\nconst email2Due = [];\nconst email3Due = [];\n\nfor (const item of leads) {\n  const lead = item.json;\n  if (!lead.last_contacted_at) continue;\n  const lastContacted = new Date(lead.last_contacted_at);\n  const daysSinceContact = (now - lastContacted) / (1000 * 60 * 60 * 24);\n  const leadSent = sentSteps[lead.id] || new Set();\n\n  // Step 1 done, check if email 2 is due\n  if (lead.email_sequence_step === 1 && daysSinceContact >= (settings.email_2_delay_days || 3)) {\n    if (leadSent.has(1)) {\n      email2Due.push({ json: { ...lead, nextStep: 2, subject: settings.email_2_subject || 'Following Up — Freedom Ryder' } });\n    }\n  }\n\n  // Step 2 done, check if email 3 is due\n  if (lead.email_sequence_step === 2 && daysSinceContact >= (settings.email_3_delay_days || 7)) {\n    if (leadSent.has(2)) {\n      email3Due.push({ json: { ...lead, nextStep: 3, subject: settings.email_3_subject || 'One Last Thing — Freedom Ryder' } });\n    }\n  }\n}\n\nconst allDue = [...email2Due, ...email3Due];\n\nif (allDue.length === 0) {\n  return [{ json: { nothingDue: true } }];\n}\n\nreturn allDue;"
       }
     },
     {
@@ -88,7 +96,7 @@
       "position": [800, 300],
       "parameters": {
         "conditions": {
-          "options": { "version": 2, "caseSensitive": false, "typeValidation": "strict" },
+          "options": { "version": 2, "caseSensitive": false, "typeValidation": "loose" },
           "conditions": [
             {
               "id": "cond_due",
@@ -109,12 +117,12 @@
       "position": [1050, 200],
       "parameters": {
         "conditions": {
-          "options": { "version": 2, "caseSensitive": false, "typeValidation": "strict" },
+          "options": { "version": 2, "caseSensitive": false, "typeValidation": "loose" },
           "conditions": [
             {
               "id": "cond_step",
               "leftValue": "={{ $json.nextStep }}",
-              "rightValue": "2",
+              "rightValue": 2,
               "operator": { "type": "number", "operation": "equals" }
             }
           ],
@@ -128,7 +136,6 @@
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.1,
       "position": [1300, 100],
-
       "parameters": {
         "resource": "message",
         "operation": "send",
@@ -148,7 +155,6 @@
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.1,
       "position": [1300, 350],
-
       "parameters": {
         "resource": "message",
         "operation": "send",
@@ -163,34 +169,30 @@
       }
     },
     {
-      "id": "label_email_2",
-      "name": "Tag Email 2 Sent",
-      "type": "n8n-nodes-base.gmail",
-      "typeVersion": 2.1,
-      "position": [1550, 100],
-      "parameters": {
-        "resource": "message",
-        "operation": "addLabels",
-        "messageId": "={{ $json.messageId || '' }}",
-        "labelIds": ["fr-auto-sent"]
-      }
-    },
-    {
       "id": "update_step_2",
       "name": "Update Lead → Step 2",
       "type": "n8n-nodes-base.supabase",
       "typeVersion": 1,
-      "position": [1800, 100],
+      "position": [1550, 100],
       "parameters": {
+        "resource": "row",
         "operation": "update",
         "tableId": "leads",
+        "filterType": "manual",
+        "matchType": "allFilters",
         "filters": {
-          "conditions": [{ "keyName": "id", "keyValue": "={{ $json.id }}" }]
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $json.id }}"
+            }
+          ]
         },
-        "fieldsToSend": {
+        "fieldsUi": {
           "fieldValues": [
-            { "fieldName": "email_sequence_step", "fieldValue": "2" },
-            { "fieldName": "last_contacted_at", "fieldValue": "={{ $now.toISO() }}" }
+            { "fieldId": "email_sequence_step", "fieldValue": "2" },
+            { "fieldId": "last_contacted_at", "fieldValue": "={{ $now.toISO() }}" }
           ]
         }
       }
@@ -200,16 +202,17 @@
       "name": "Log Email 2",
       "type": "n8n-nodes-base.supabase",
       "typeVersion": 1,
-      "position": [1800, 0],
+      "position": [1550, 0],
       "parameters": {
+        "resource": "row",
         "operation": "create",
         "tableId": "email_sequence_log",
-        "fieldsToSend": {
+        "fieldsUi": {
           "fieldValues": [
-            { "fieldName": "lead_id", "fieldValue": "={{ $json.id }}" },
-            { "fieldName": "step", "fieldValue": "2" },
-            { "fieldName": "email_subject", "fieldValue": "={{ $json.subject }}" },
-            { "fieldName": "status", "fieldValue": "sent" }
+            { "fieldId": "lead_id", "fieldValue": "={{ $json.id }}" },
+            { "fieldId": "step", "fieldValue": "2" },
+            { "fieldId": "email_subject", "fieldValue": "={{ $json.subject }}" },
+            { "fieldId": "status", "fieldValue": "sent" }
           ]
         }
       }
@@ -221,18 +224,26 @@
       "typeVersion": 1,
       "position": [1550, 350],
       "parameters": {
+        "resource": "row",
         "operation": "update",
         "tableId": "leads",
+        "filterType": "manual",
+        "matchType": "allFilters",
         "filters": {
-          "conditions": [{ "keyName": "id", "keyValue": "={{ $json.id }}" }]
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $json.id }}"
+            }
+          ]
         },
-        "fieldsToSend": {
+        "fieldsUi": {
           "fieldValues": [
-            { "fieldName": "email_sequence_step", "fieldValue": "3" },
-            { "fieldName": "email_sequence_active", "fieldValue": "false" },
-            { "fieldName": "assigned_to", "fieldValue": "bob" },
-            { "fieldName": "last_contacted_at", "fieldValue": "={{ $now.toISO() }}" },
-            { "fieldName": "tags", "fieldValue": "={{ JSON.stringify([...(JSON.parse($json.tags || '[]')), \"bob's lead\"]) }}" }
+            { "fieldId": "email_sequence_step", "fieldValue": "3" },
+            { "fieldId": "email_sequence_active", "fieldValue": "false" },
+            { "fieldId": "assigned_to", "fieldValue": "bob" },
+            { "fieldId": "last_contacted_at", "fieldValue": "={{ $now.toISO() }}" }
           ]
         }
       }
@@ -244,14 +255,15 @@
       "typeVersion": 1,
       "position": [1550, 500],
       "parameters": {
+        "resource": "row",
         "operation": "create",
         "tableId": "email_sequence_log",
-        "fieldsToSend": {
+        "fieldsUi": {
           "fieldValues": [
-            { "fieldName": "lead_id", "fieldValue": "={{ $json.id }}" },
-            { "fieldName": "step", "fieldValue": "3" },
-            { "fieldName": "email_subject", "fieldValue": "={{ $json.subject }}" },
-            { "fieldName": "status", "fieldValue": "sent" }
+            { "fieldId": "lead_id", "fieldValue": "={{ $json.id }}" },
+            { "fieldId": "step", "fieldValue": "3" },
+            { "fieldId": "email_subject", "fieldValue": "={{ $json.subject }}" },
+            { "fieldId": "status", "fieldValue": "sent" }
           ]
         }
       }
@@ -263,14 +275,15 @@
       "typeVersion": 1,
       "position": [1800, 350],
       "parameters": {
+        "resource": "row",
         "operation": "create",
         "tableId": "notifications",
-        "fieldsToSend": {
+        "fieldsUi": {
           "fieldValues": [
-            { "fieldName": "type", "fieldValue": "sequence_complete" },
-            { "fieldName": "title", "fieldValue": "Sequence Complete" },
-            { "fieldName": "message", "fieldValue": "={{ $json.full_name + ' completed the 3-email sequence — handed off to Bob' }}" },
-            { "fieldName": "lead_id", "fieldValue": "={{ $json.id }}" }
+            { "fieldId": "type", "fieldValue": "sequence_complete" },
+            { "fieldId": "title", "fieldValue": "Sequence Complete" },
+            { "fieldId": "message", "fieldValue": "={{ $json.full_name + ' completed the 3-email sequence — handed off to Bob' }}" },
+            { "fieldId": "lead_id", "fieldValue": "={{ $json.id }}" }
           ]
         }
       }
@@ -309,9 +322,6 @@
       ]
     },
     "Send Follow-Up (Email 2)": {
-      "main": [[{ "node": "Tag Email 2 Sent", "type": "main", "index": 0 }]]
-    },
-    "Tag Email 2 Sent": {
       "main": [[
         { "node": "Update Lead → Step 2", "type": "main", "index": 0 },
         { "node": "Log Email 2", "type": "main", "index": 0 }
@@ -328,7 +338,6 @@
     }
   },
   "settings": {
-    "executionOrder": "v1",
-    "errorWorkflow": "<<ERROR_WORKFLOW_ID>>"
+    "executionOrder": "v1"
   }
 }

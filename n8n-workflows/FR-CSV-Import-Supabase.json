@@ -11,25 +11,19 @@
         "httpMethod": "POST",
         "path": "fr-lead-import",
         "responseMode": "lastNode",
-        "options": {
-          "rawBody": false
-        },
         "authentication": "headerAuth",
-        "headerAuth": {
-          "name": "x-webhook-secret",
-          "value": "={{$env.N8N_WEBHOOK_SECRET}}"
-        }
+        "options": {}
       }
     },
     {
       "id": "csv_parse",
       "name": "Parse CSV File",
-      "type": "n8n-nodes-base.spreadsheetFile",
-      "typeVersion": 2,
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
       "position": [250, 300],
       "parameters": {
-        "operation": "fromFile",
-        "fileFormat": "csv"
+        "operation": "csv",
+        "binaryPropertyName": "data"
       }
     },
     {
@@ -41,7 +35,7 @@
       "parameters": {
         "mode": "runOnceForAllItems",
         "language": "javaScript",
-        "jsCode": "const items = $input.all();\nconst mapped = [];\n\nfor (const item of items) {\n  const d = item.json;\n  const fullName = d['Full Name'] || d['Name'] || d['full_name'] || d['name'] || '';\n  const firstName = fullName.split(' ')[0] || '';\n  const email = (d['Email'] || d['email'] || '').trim();\n\n  if (!email || !email.includes('@')) continue;\n\n  mapped.push({\n    json: {\n      full_name: fullName,\n      first_name: firstName,\n      email: email,\n      phone: d['Phone'] || d['phone'] || '',\n      state: d['State'] || d['state'] || '',\n      riding_goal: d['Riding Goal'] || d['riding_goal'] || '',\n      height: d['Height'] || d['height'] || '',\n      weight: d['Weight'] || d['weight'] || '',\n      inquiry_type: 'general',\n      status: 'new',\n      temperature: 'medium',\n      source: 'ad',\n      tags: '{\"ad lead\"}',\n      email_sequence_active: true,\n      email_sequence_step: 0\n    }\n  });\n}\n\nif (mapped.length === 0) {\n  throw new Error('No valid rows found in CSV (need at least an email column).');\n}\n\nreturn mapped;"
+        "jsCode": "const items = $input.all();\nconst mapped = [];\n\nfor (const item of items) {\n  const d = item.json;\n  const fullName = d['Full Name'] || d['Name'] || d['full_name'] || d['name'] || '';\n  const firstName = fullName.split(' ')[0] || '';\n  const email = (d['Email'] || d['email'] || '').trim();\n\n  if (!email || !email.includes('@')) continue;\n\n  mapped.push({\n    json: {\n      full_name: fullName,\n      first_name: firstName,\n      email: email.toLowerCase(),\n      phone: d['Phone'] || d['phone'] || '',\n      state: d['State'] || d['state'] || '',\n      riding_goal: d['Riding Goal'] || d['riding_goal'] || '',\n      height: d['Height'] || d['height'] || '',\n      weight: d['Weight'] || d['weight'] || '',\n      inquiry_type: 'general',\n      status: 'new',\n      temperature: 'medium',\n      source: 'ad',\n      email_sequence_active: true,\n      email_sequence_step: 0\n    }\n  });\n}\n\nif (mapped.length === 0) {\n  throw new Error('No valid rows found in CSV (need at least an email column).');\n}\n\nreturn mapped;"
       }
     },
     {
@@ -51,25 +45,25 @@
       "typeVersion": 1,
       "position": [750, 300],
       "parameters": {
+        "resource": "row",
         "operation": "create",
         "tableId": "leads",
-        "fieldsToSend": {
+        "fieldsUi": {
           "fieldValues": [
-            { "fieldName": "full_name", "fieldValue": "={{ $json.full_name }}" },
-            { "fieldName": "first_name", "fieldValue": "={{ $json.first_name }}" },
-            { "fieldName": "email", "fieldValue": "={{ $json.email }}" },
-            { "fieldName": "phone", "fieldValue": "={{ $json.phone }}" },
-            { "fieldName": "state", "fieldValue": "={{ $json.state }}" },
-            { "fieldName": "riding_goal", "fieldValue": "={{ $json.riding_goal }}" },
-            { "fieldName": "height", "fieldValue": "={{ $json.height }}" },
-            { "fieldName": "weight", "fieldValue": "={{ $json.weight }}" },
-            { "fieldName": "inquiry_type", "fieldValue": "={{ $json.inquiry_type }}" },
-            { "fieldName": "status", "fieldValue": "={{ $json.status }}" },
-            { "fieldName": "temperature", "fieldValue": "={{ $json.temperature }}" },
-            { "fieldName": "source", "fieldValue": "ad" },
-            { "fieldName": "tags", "fieldValue": "={{ $json.tags }}" },
-            { "fieldName": "email_sequence_active", "fieldValue": "={{ $json.email_sequence_active }}" },
-            { "fieldName": "email_sequence_step", "fieldValue": "0" }
+            { "fieldId": "full_name", "fieldValue": "={{ $json.full_name }}" },
+            { "fieldId": "first_name", "fieldValue": "={{ $json.first_name }}" },
+            { "fieldId": "email", "fieldValue": "={{ $json.email }}" },
+            { "fieldId": "phone", "fieldValue": "={{ $json.phone }}" },
+            { "fieldId": "state", "fieldValue": "={{ $json.state }}" },
+            { "fieldId": "riding_goal", "fieldValue": "={{ $json.riding_goal }}" },
+            { "fieldId": "height", "fieldValue": "={{ $json.height }}" },
+            { "fieldId": "weight", "fieldValue": "={{ $json.weight }}" },
+            { "fieldId": "inquiry_type", "fieldValue": "general" },
+            { "fieldId": "status", "fieldValue": "new" },
+            { "fieldId": "temperature", "fieldValue": "medium" },
+            { "fieldId": "source", "fieldValue": "ad" },
+            { "fieldId": "email_sequence_active", "fieldValue": "true" },
+            { "fieldId": "email_sequence_step", "fieldValue": "0" }
           ]
         }
       }
@@ -81,13 +75,14 @@
       "typeVersion": 1,
       "position": [1000, 300],
       "parameters": {
+        "resource": "row",
         "operation": "create",
         "tableId": "ad_imports",
-        "fieldsToSend": {
+        "fieldsUi": {
           "fieldValues": [
-            { "fieldName": "file_name", "fieldValue": "={{ 'csv-import-' + $now.format('yyyy-MM-dd-HHmm') + '.csv' }}" },
-            { "fieldName": "lead_count", "fieldValue": "={{ $('Map & Normalize Columns').all().length }}" },
-            { "fieldName": "imported_by", "fieldValue": "forrest" }
+            { "fieldId": "file_name", "fieldValue": "={{ 'csv-import-' + $now.format('yyyy-MM-dd-HHmm') + '.csv' }}" },
+            { "fieldId": "lead_count", "fieldValue": "={{ $('Map & Normalize Columns').all().length }}" },
+            { "fieldId": "imported_by", "fieldValue": "forrest" }
           ]
         }
       }
@@ -99,13 +94,14 @@
       "typeVersion": 1,
       "position": [1000, 500],
       "parameters": {
+        "resource": "row",
         "operation": "create",
         "tableId": "notifications",
-        "fieldsToSend": {
+        "fieldsUi": {
           "fieldValues": [
-            { "fieldName": "type", "fieldValue": "import" },
-            { "fieldName": "title", "fieldValue": "CSV Import Complete" },
-            { "fieldName": "message", "fieldValue": "={{ $('Map & Normalize Columns').all().length + ' ad leads imported from CSV' }}" }
+            { "fieldId": "type", "fieldValue": "import" },
+            { "fieldId": "title", "fieldValue": "CSV Import Complete" },
+            { "fieldId": "message", "fieldValue": "={{ $('Map & Normalize Columns').all().length + ' ad leads imported from CSV' }}" }
           ]
         }
       }
@@ -143,7 +139,6 @@
     }
   },
   "settings": {
-    "executionOrder": "v1",
-    "errorWorkflow": "<<ERROR_WORKFLOW_ID>>"
+    "executionOrder": "v1"
   }
 }

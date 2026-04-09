@@ -35,7 +35,7 @@
       "position": [500, 300],
       "parameters": {
         "conditions": {
-          "options": { "version": 2, "caseSensitive": false, "typeValidation": "strict" },
+          "options": { "version": 2, "caseSensitive": false, "typeValidation": "loose" },
           "conditions": [
             {
               "id": "cond_valid",
@@ -55,18 +55,22 @@
       "typeVersion": 1,
       "position": [750, 200],
       "parameters": {
+        "resource": "row",
         "operation": "getAll",
         "tableId": "leads",
+        "returnAll": false,
+        "limit": 1,
+        "filterType": "manual",
+        "matchType": "allFilters",
         "filters": {
           "conditions": [
             {
               "keyName": "email",
+              "condition": "eq",
               "keyValue": "={{ $json.senderEmail }}"
             }
           ]
-        },
-        "returnAll": false,
-        "limit": 1
+        }
       }
     },
     {
@@ -77,7 +81,7 @@
       "position": [1000, 200],
       "parameters": {
         "conditions": {
-          "options": { "version": 2, "caseSensitive": false, "typeValidation": "strict" },
+          "options": { "version": 2, "caseSensitive": false, "typeValidation": "loose" },
           "conditions": [
             {
               "id": "cond_exists",
@@ -97,63 +101,25 @@
       "typeVersion": 1,
       "position": [1250, 100],
       "parameters": {
+        "resource": "row",
         "operation": "update",
         "tableId": "leads",
-        "filters": {
-          "conditions": [{ "keyName": "id", "keyValue": "={{ $json.id }}" }]
-        },
-        "fieldsToSend": {
-          "fieldValues": [
-            { "fieldName": "email_sequence_active", "fieldValue": "false" },
-            { "fieldName": "status", "fieldValue": "replied" },
-            { "fieldName": "last_replied_at", "fieldValue": "={{ $now.toISO() }}" }
-          ]
-        }
-      }
-    },
-    {
-      "id": "update_log",
-      "name": "Find Latest Email Log",
-      "type": "n8n-nodes-base.supabase",
-      "typeVersion": 1,
-      "position": [1250, 300],
-      "parameters": {
-        "operation": "getAll",
-        "tableId": "email_sequence_log",
-        "filters": {
-          "conditions": [
-            {
-              "keyName": "lead_id",
-              "keyValue": "={{ $('Find Lead in Supabase').first().json.id }}"
-            }
-          ]
-        },
-        "returnAll": true,
-        "options": {
-          "order": { "field": "sent_at", "direction": "desc" }
-        }
-      }
-    },
-    {
-      "id": "persist_log_replied",
-      "name": "Mark Log as Replied",
-      "type": "n8n-nodes-base.supabase",
-      "typeVersion": 1,
-      "position": [1500, 450],
-      "parameters": {
-        "operation": "update",
-        "tableId": "email_sequence_log",
+        "filterType": "manual",
+        "matchType": "allFilters",
         "filters": {
           "conditions": [
             {
               "keyName": "id",
-              "keyValue": "={{ $('Find Latest Email Log').first().json.id }}"
+              "condition": "eq",
+              "keyValue": "={{ $json.id }}"
             }
           ]
         },
-        "fieldsToSend": {
+        "fieldsUi": {
           "fieldValues": [
-            { "fieldName": "status", "fieldValue": "replied" }
+            { "fieldId": "email_sequence_active", "fieldValue": "false" },
+            { "fieldId": "status", "fieldValue": "replied" },
+            { "fieldId": "last_replied_at", "fieldValue": "={{ $now.toISO() }}" }
           ]
         }
       }
@@ -165,14 +131,15 @@
       "typeVersion": 1,
       "position": [1500, 100],
       "parameters": {
+        "resource": "row",
         "operation": "create",
         "tableId": "notifications",
-        "fieldsToSend": {
+        "fieldsUi": {
           "fieldValues": [
-            { "fieldName": "type", "fieldValue": "reply" },
-            { "fieldName": "title", "fieldValue": "Lead Replied" },
-            { "fieldName": "message", "fieldValue": "={{ $('Find Lead in Supabase').first().json.full_name + ' replied to an email: \"' + $('Extract Sender Email').first().json.snippet.substring(0, 80) + '...\"' }}" },
-            { "fieldName": "lead_id", "fieldValue": "={{ $('Find Lead in Supabase').first().json.id }}" }
+            { "fieldId": "type", "fieldValue": "reply" },
+            { "fieldId": "title", "fieldValue": "Lead Replied" },
+            { "fieldId": "message", "fieldValue": "={{ $('Find Lead in Supabase').first().json.full_name + ' replied to an email: \"' + $('Extract Sender Email').first().json.snippet.substring(0, 80) + '...\"' }}" },
+            { "fieldId": "lead_id", "fieldValue": "={{ $('Find Lead in Supabase').first().json.id }}" }
           ]
         }
       }
@@ -214,10 +181,7 @@
     },
     "Lead Found?": {
       "main": [
-        [
-          { "node": "Stop Sequence + Mark Replied", "type": "main", "index": 0 },
-          { "node": "Find Latest Email Log", "type": "main", "index": 0 }
-        ],
+        [{ "node": "Stop Sequence + Mark Replied", "type": "main", "index": 0 }],
         []
       ]
     },
@@ -226,13 +190,9 @@
         { "node": "Notify: Lead Replied", "type": "main", "index": 0 },
         { "node": "Email Alert to Forrest", "type": "main", "index": 0 }
       ]]
-    },
-    "Find Latest Email Log": {
-      "main": [[{ "node": "Mark Log as Replied", "type": "main", "index": 0 }]]
     }
   },
   "settings": {
-    "executionOrder": "v1",
-    "errorWorkflow": "<<ERROR_WORKFLOW_ID>>"
+    "executionOrder": "v1"
   }
 }

@@ -25,17 +25,21 @@
       "typeVersion": 1,
       "position": [250, 300],
       "parameters": {
+        "resource": "row",
         "operation": "getAll",
         "tableId": "leads",
+        "returnAll": true,
+        "filterType": "manual",
+        "matchType": "allFilters",
         "filters": {
           "conditions": [
             {
               "keyName": "assigned_to",
+              "condition": "eq",
               "keyValue": "bob"
             }
           ]
-        },
-        "returnAll": true
+        }
       }
     },
     {
@@ -47,7 +51,7 @@
       "parameters": {
         "mode": "runOnceForAllItems",
         "language": "javaScript",
-        "jsCode": "const leads = $input.all();\n\nif (leads.length === 0) {\n  return [{ json: { hasLeads: false, csv: '', html: '' } }];\n}\n\n// Build CSV\nconst headers = ['Full Name', 'Phone', 'Email', 'Contacted', 'Replied', 'Status', 'Temperature', 'Date Added'];\nconst rows = leads.map(l => {\n  const d = l.json;\n  return [\n    d.full_name || '',\n    d.phone || '',\n    d.email || '',\n    d.last_contacted_at ? 'Yes' : 'No',\n    d.last_replied_at ? 'Yes' : 'No',\n    (d.status || '').replace('_', ' '),\n    d.temperature || '',\n    d.created_at ? new Date(d.created_at).toLocaleDateString('en-US') : ''\n  ];\n});\n\n// Sanitize CSV injection: prefix cells starting with =, +, -, @ with a single quote\nfunction sanitize(v) { return /^[=+\\-@\\t\\r]/.test(v) ? \"'\" + v : v; }\n\nconst csvLines = [headers.join(',')];\nfor (const row of rows) {\n  csvLines.push(row.map(v => '\"' + sanitize(v).replace(/\"/g, '\"\"') + '\"').join(','));\n}\nconst csv = csvLines.join('\\n');\n\n// Build HTML summary\nconst newLeads = leads.filter(l => !l.json.last_contacted_at).length;\nconst contacted = leads.filter(l => l.json.last_contacted_at && !l.json.last_replied_at).length;\nconst replied = leads.filter(l => l.json.last_replied_at).length;\n\nlet html = '<h2>Weekly Lead Report — Freedom Ryder</h2>';\nhtml += '<p><strong>Date:</strong> ' + new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) + '</p>';\nhtml += '<hr>';\nhtml += '<p><strong>Total leads assigned to you:</strong> ' + leads.length + '</p>';\nhtml += '<ul>';\nhtml += '<li>New / uncontacted: ' + newLeads + '</li>';\nhtml += '<li>Contacted, awaiting reply: ' + contacted + '</li>';\nhtml += '<li>Replied: ' + replied + '</li>';\nhtml += '</ul>';\nhtml += '<hr>';\nhtml += '<p>Your full lead list is attached as a CSV. Reply to this email with any updates and Forrest will update the system.</p>';\nhtml += '<p>Thanks, Bob!<br>— Freedom Ryder CRM</p>';\n\nreturn [{ json: { hasLeads: true, csv, html, leadCount: leads.length } }];"
+        "jsCode": "const leads = $input.all();\n\nif (leads.length === 0) {\n  return [{ json: { hasLeads: false, csv: '', html: '', leadCount: 0 } }];\n}\n\n// Build CSV\nconst headers = ['Full Name', 'Phone', 'Email', 'Contacted', 'Replied', 'Status', 'Temperature', 'Date Added'];\nconst rows = leads.map(l => {\n  const d = l.json;\n  return [\n    d.full_name || '',\n    d.phone || '',\n    d.email || '',\n    d.last_contacted_at ? 'Yes' : 'No',\n    d.last_replied_at ? 'Yes' : 'No',\n    (d.status || '').replace('_', ' '),\n    d.temperature || '',\n    d.created_at ? new Date(d.created_at).toLocaleDateString('en-US') : ''\n  ];\n});\n\n// Sanitize CSV injection: prefix cells starting with =, +, -, @ with a single quote\nfunction sanitize(v) { return /^[=+\\-@\\t\\r]/.test(v) ? \"'\" + v : v; }\n\nconst csvLines = [headers.join(',')];\nfor (const row of rows) {\n  csvLines.push(row.map(v => '\"' + sanitize(v).replace(/\"/g, '\"\"') + '\"').join(','));\n}\nconst csv = csvLines.join('\\n');\n\n// Build HTML summary\nconst newLeads = leads.filter(l => !l.json.last_contacted_at).length;\nconst contacted = leads.filter(l => l.json.last_contacted_at && !l.json.last_replied_at).length;\nconst replied = leads.filter(l => l.json.last_replied_at).length;\n\nlet html = '<h2>Weekly Lead Report — Freedom Ryder</h2>';\nhtml += '<p><strong>Date:</strong> ' + new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) + '</p>';\nhtml += '<hr>';\nhtml += '<p><strong>Total leads assigned to you:</strong> ' + leads.length + '</p>';\nhtml += '<ul>';\nhtml += '<li>New / uncontacted: ' + newLeads + '</li>';\nhtml += '<li>Contacted, awaiting reply: ' + contacted + '</li>';\nhtml += '<li>Replied: ' + replied + '</li>';\nhtml += '</ul>';\nhtml += '<hr>';\nhtml += '<p>Your full lead list is attached as a CSV. Reply to this email with any updates and Forrest will update the system.</p>';\nhtml += '<p>Thanks, Bob!<br>— Freedom Ryder CRM</p>';\n\n// Create CSV binary attachment\nconst today = new Date().toISOString().split('T')[0];\nconst fileName = 'bobs-leads-' + today + '.csv';\nconst binaryData = Buffer.from(csv, 'utf-8');\n\nreturn [{\n  json: { hasLeads: true, csv, html, leadCount: leads.length, fileName },\n  binary: {\n    attachment: {\n      data: binaryData.toString('base64'),\n      mimeType: 'text/csv',\n      fileName: fileName\n    }\n  }\n}];"
       }
     },
     {
@@ -58,7 +62,7 @@
       "position": [750, 300],
       "parameters": {
         "conditions": {
-          "options": { "version": 2, "caseSensitive": false, "typeValidation": "strict" },
+          "options": { "version": 2, "caseSensitive": false, "typeValidation": "loose" },
           "conditions": [
             {
               "id": "cond_has",
@@ -72,23 +76,11 @@
       }
     },
     {
-      "id": "create_file",
-      "name": "Create CSV File",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [1000, 200],
-      "parameters": {
-        "mode": "runOnceForAllItems",
-        "language": "javaScript",
-        "jsCode": "const csv = $('Build CSV + Email Body').first().json.csv;\nconst today = new Date().toISOString().split('T')[0];\nconst fileName = 'bobs-leads-' + today + '.csv';\n\nconst binaryData = Buffer.from(csv, 'utf-8');\n\nreturn [{\n  json: $('Build CSV + Email Body').first().json,\n  binary: {\n    attachment: {\n      data: binaryData.toString('base64'),\n      mimeType: 'text/csv',\n      fileName: fileName\n    }\n  }\n}];"
-      }
-    },
-    {
       "id": "send_to_bob",
       "name": "Email CSV to Bob",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.1,
-      "position": [1250, 200],
+      "position": [1000, 200],
       "parameters": {
         "resource": "message",
         "operation": "send",
@@ -104,7 +96,8 @@
               }
             ]
           },
-          "appendAttribution": false
+          "appendAttribution": false,
+          "ccList": "forrest@freedomryder.com"
         }
       }
     },
@@ -113,33 +106,16 @@
       "name": "Notify: Export Sent",
       "type": "n8n-nodes-base.supabase",
       "typeVersion": 1,
-      "position": [1250, 400],
+      "position": [1250, 200],
       "parameters": {
+        "resource": "row",
         "operation": "create",
         "tableId": "notifications",
-        "fieldsToSend": {
+        "fieldsUi": {
           "fieldValues": [
-            { "fieldName": "type", "fieldValue": "import" },
-            { "fieldName": "title", "fieldValue": "Weekly Export Sent" },
-            { "fieldName": "message", "fieldValue": "={{ 'Bob\\'s weekly CSV (' + $('Build CSV + Email Body').first().json.leadCount + ' leads) was emailed automatically' }}" }
-          ]
-        }
-      }
-    },
-    {
-      "id": "log_export",
-      "name": "Log Export",
-      "type": "n8n-nodes-base.supabase",
-      "typeVersion": 1,
-      "position": [1500, 200],
-      "parameters": {
-        "operation": "create",
-        "tableId": "ad_imports",
-        "fieldsToSend": {
-          "fieldValues": [
-            { "fieldName": "file_name", "fieldValue": "={{ 'bobs-leads-' + $now.format('yyyy-MM-dd') + '.csv' }}" },
-            { "fieldName": "lead_count", "fieldValue": "={{ $('Build CSV + Email Body').first().json.leadCount }}" },
-            { "fieldName": "imported_by", "fieldValue": "system-auto-export" }
+            { "fieldId": "type", "fieldValue": "import" },
+            { "fieldId": "title", "fieldValue": "Weekly Export Sent" },
+            { "fieldId": "message", "fieldValue": "={{ 'Bob\\'s weekly CSV (' + $json.leadCount + ' leads) was emailed automatically' }}" }
           ]
         }
       }
@@ -157,22 +133,15 @@
     },
     "Has Leads?": {
       "main": [
-        [{ "node": "Create CSV File", "type": "main", "index": 0 }],
+        [{ "node": "Email CSV to Bob", "type": "main", "index": 0 }],
         []
       ]
     },
-    "Create CSV File": {
-      "main": [[
-        { "node": "Email CSV to Bob", "type": "main", "index": 0 },
-        { "node": "Notify: Export Sent", "type": "main", "index": 0 }
-      ]]
-    },
     "Email CSV to Bob": {
-      "main": [[{ "node": "Log Export", "type": "main", "index": 0 }]]
+      "main": [[{ "node": "Notify: Export Sent", "type": "main", "index": 0 }]]
     }
   },
   "settings": {
-    "executionOrder": "v1",
-    "errorWorkflow": "<<ERROR_WORKFLOW_ID>>"
+    "executionOrder": "v1"
   }
 }
