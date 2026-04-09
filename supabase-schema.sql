@@ -240,15 +240,48 @@ create table allowed_crm_users (
 insert into allowed_crm_users (email) values ('forrest@freedomryder.com');
 
 -- Helper function: check if current user is authorized
-create or replace function is_authorized_user()
-returns boolean as $$
+-- SECURITY DEFINER: runs with elevated privileges to read allowed_crm_users
+-- STABLE: result doesn't change within a single query, enables caching
+-- set search_path = '': prevents search_path injection attacks
+create or replace function public.is_authorized_user()
+returns boolean
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  user_email text;
 begin
+  -- Extract email from current JWT (null-safe)
+  user_email := (select auth.jwt() ->> 'email');
+
+  -- Must have a verified email and it must be in the allowlist
+  if user_email is null or user_email = '' then
+    return false;
+  end if;
+
   return exists (
-    select 1 from allowed_crm_users
-    where email = (select auth.jwt() ->> 'email')
+    select 1 from public.allowed_crm_users
+    where email = lower(user_email)
   );
 end;
-$$ language plpgsql security definer set search_path = '';
+$$;
+
+-- Normalize email to lowercase on insert (case-insensitive matching)
+create or replace function public.lower_email_on_insert()
+returns trigger
+language plpgsql
+as $$
+begin
+  new.email := lower(new.email);
+  return new;
+end;
+$$;
+
+create trigger allowed_crm_users_lower_email
+  before insert or update on public.allowed_crm_users
+  for each row execute function public.lower_email_on_insert();
 
 -- RLS on the allowlist table itself (only service_role can modify)
 alter table allowed_crm_users enable row level security;
