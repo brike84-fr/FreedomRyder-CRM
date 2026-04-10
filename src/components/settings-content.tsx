@@ -6,8 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import { Badge } from "@/components/ui/badge";
-import { CheckCircle2, Mail, Clock, Tag, X, User, KeyRound } from "lucide-react";
+import { CheckCircle2, Mail, Clock, User, KeyRound } from "lucide-react";
 import { updateSettings } from "@/lib/actions";
 import { createClient } from "@/lib/supabase/client";
 import type { EmailSequenceSettings } from "@/lib/data";
@@ -67,9 +66,6 @@ export function SettingsContent({ settings, userEmail }: SettingsContentProps) {
   const [email2Subject, setEmail2Subject] = useState(settings?.email_2_subject || "Following Up — Freedom Ryder");
   const [email3Subject, setEmail3Subject] = useState(settings?.email_3_subject || "One Last Thing — Freedom Ryder");
 
-  const [tags, setTags] = useState(["hot", "medium", "cold", "veteran", "ad lead", "bob's lead"]);
-  const [newTag, setNewTag] = useState("");
-
   const handleSave = async () => {
     setSaving(true);
     setError("");
@@ -89,18 +85,6 @@ export function SettingsContent({ settings, userEmail }: SettingsContentProps) {
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     }
-  };
-
-  const addTag = () => {
-    const tag = newTag.trim().toLowerCase();
-    if (tag && !tags.includes(tag)) {
-      setTags([...tags, tag]);
-      setNewTag("");
-    }
-  };
-
-  const removeTag = (tag: string) => {
-    setTags(tags.filter((t) => t !== tag));
   };
 
   return (
@@ -310,48 +294,6 @@ export function SettingsContent({ settings, userEmail }: SettingsContentProps) {
                 />
               </div>
             </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Tags */}
-      <Card className="bg-warm-white border-border shadow-none">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-semibold text-ink-light uppercase tracking-wider flex items-center gap-2">
-            <Tag className="w-4 h-4" />
-            Lead Tags
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex flex-wrap gap-2">
-            {tags.map((tag) => (
-              <Badge
-                key={tag}
-                variant="outline"
-                className="text-sm py-1 px-3 flex items-center gap-1.5"
-              >
-                {tag}
-                <button
-                  onClick={() => removeTag(tag)}
-                  className="hover:text-rust transition-colors"
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              </Badge>
-            ))}
-          </div>
-          <div className="flex gap-2 max-w-sm">
-            <Input
-              value={newTag}
-              onChange={(e) => setNewTag(e.target.value.slice(0, 50))}
-              placeholder="Add new tag..."
-              className="bg-cream border-border"
-              maxLength={50}
-              onKeyDown={(e) => e.key === "Enter" && addTag()}
-            />
-            <Button onClick={addTag} variant="outline" className="border-border">
-              Add
-            </Button>
           </div>
         </CardContent>
       </Card>

@@ -33,8 +33,9 @@ export function ExportContent({ bobsLeads }: { bobsLeads: Lead[] }) {
     ]);
 
     const sanitize = (v: string) => {
-      if (/^[=+\-@\t\r]/.test(v)) return "'" + v;
-      return v;
+      let s = v.replace(/"/g, '""'); // RFC 4180: escape internal double quotes
+      if (/^[=+\-@\t\r\n]/.test(s)) s = "'" + s;
+      return s;
     };
     const csv = [headers, ...csvRows].map((r) => r.map((v) => `"${sanitize(v)}"`).join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv" });

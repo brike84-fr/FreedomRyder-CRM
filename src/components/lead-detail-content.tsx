@@ -13,7 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { updateLead, pauseLeadSequence } from "@/lib/actions";
+import { updateLead, pauseLeadSequence, resumeLeadSequence } from "@/lib/actions";
 import type { Lead, EmailSequenceLog, LeadStatus, LeadTemperature } from "@/lib/types";
 import {
   ArrowLeft,
@@ -113,9 +113,25 @@ export function LeadDetailContent({ leadId, lead, emailLogs }: LeadDetailContent
 
   const handlePauseSequence = async () => {
     setSaving(true);
-    await pauseLeadSequence(leadId);
+    const result = await pauseLeadSequence(leadId);
     setSaving(false);
-    setSavedMessage("Sequence paused");
+    if ("error" in result) {
+      setSavedMessage(result.error);
+    } else {
+      setSavedMessage("Sequence paused");
+    }
+    setTimeout(() => setSavedMessage(""), 2000);
+  };
+
+  const handleResumeSequence = async () => {
+    setSaving(true);
+    const result = await resumeLeadSequence(leadId);
+    setSaving(false);
+    if ("error" in result) {
+      setSavedMessage(result.error);
+    } else {
+      setSavedMessage("Sequence resumed");
+    }
     setTimeout(() => setSavedMessage(""), 2000);
   };
 
@@ -140,7 +156,7 @@ export function LeadDetailContent({ leadId, lead, emailLogs }: LeadDetailContent
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-4">
           <div className="w-14 h-14 rounded-full bg-forest-light flex items-center justify-center text-lg font-semibold text-forest-deep">
-            {lead.first_name[0]}{lead.full_name.split(" ")[1]?.[0] || ""}
+            {lead.first_name?.[0] || ""}{lead.full_name.split(" ")[1]?.[0] || ""}
           </div>
           <div>
             <h1 className="font-[var(--font-heading)] text-2xl text-ink">{lead.full_name}</h1>
@@ -284,7 +300,7 @@ export function LeadDetailContent({ leadId, lead, emailLogs }: LeadDetailContent
                 <p className="text-sm text-ink-muted">No emails sent yet.</p>
               )}
 
-              {lead.email_sequence_active && (
+              {lead.email_sequence_active ? (
                 <Button
                   variant="outline"
                   onClick={handlePauseSequence}
@@ -292,6 +308,15 @@ export function LeadDetailContent({ leadId, lead, emailLogs }: LeadDetailContent
                   className="mt-4 border-rust text-rust hover:bg-rust-light"
                 >
                   Pause Sequence
+                </Button>
+              ) : lead.email_sequence_step < 3 && (
+                <Button
+                  variant="outline"
+                  onClick={handleResumeSequence}
+                  disabled={saving}
+                  className="mt-4 border-forest text-forest hover:bg-forest-light"
+                >
+                  Resume Sequence
                 </Button>
               )}
             </CardContent>

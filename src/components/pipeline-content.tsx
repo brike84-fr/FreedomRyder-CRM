@@ -398,7 +398,7 @@ export function PipelineContent({ leads: initialLeads }: { leads: Lead[] }) {
                       className="flex items-center gap-3 hover:underline"
                     >
                       <div className="w-8 h-8 rounded-full bg-forest-light flex items-center justify-center text-xs font-semibold text-forest-deep shrink-0">
-                        {lead.first_name[0]}
+                        {lead.first_name?.[0] || ""}
                         {lead.full_name.split(" ")[1]?.[0] || ""}
                       </div>
                       <div>
