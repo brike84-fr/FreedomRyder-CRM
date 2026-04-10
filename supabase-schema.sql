@@ -70,6 +70,22 @@ create index idx_leads_assigned_to on leads(assigned_to);
 create index idx_leads_created_at on leads(created_at desc);
 create unique index idx_leads_email_unique on leads(lower(email));
 
+-- Normalize lead email to lowercase on insert/update
+-- This ensures the unique index always matches and reply detection works
+create or replace function public.normalize_lead_email()
+returns trigger
+language plpgsql
+as $$
+begin
+  new.email := lower(new.email);
+  return new;
+end;
+$$;
+
+create trigger leads_normalize_email
+  before insert or update of email on leads
+  for each row execute function public.normalize_lead_email();
+
 -- Auto-update updated_at
 create or replace function update_updated_at()
 returns trigger as $$
@@ -191,8 +207,8 @@ insert into email_sequence_settings (id) values (1);
 -- VIEWS
 -- ============================================
 
--- Bob's leads export view
-create view bobs_leads_export as
+-- Bob's leads export view (security_invoker enforces RLS of calling user)
+create view bobs_leads_export with (security_invoker = true) as
 select
   full_name,
   phone,
@@ -206,8 +222,8 @@ from leads
 where assigned_to = 'bob'
 order by created_at desc;
 
--- ROAS dashboard view
-create view roas_summary as
+-- ROAS dashboard view (security_invoker enforces RLS of calling user)
+create view roas_summary with (security_invoker = true) as
 select
   count(*) filter (where source = 'ad') as ad_leads,
   count(*) filter (where source = 'ad' and status = 'closed_won') as ad_conversions,

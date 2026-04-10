@@ -205,7 +205,7 @@
       "position": [1550, 0],
       "parameters": {
         "resource": "row",
-        "operation": "create",
+        "operation": "upsert",
         "tableId": "email_sequence_log",
         "fieldsUi": {
           "fieldValues": [
@@ -256,7 +256,7 @@
       "position": [1550, 500],
       "parameters": {
         "resource": "row",
-        "operation": "create",
+        "operation": "upsert",
         "tableId": "email_sequence_log",
         "fieldsUi": {
           "fieldValues": [

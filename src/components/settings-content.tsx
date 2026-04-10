@@ -18,6 +18,7 @@ interface SettingsContentProps {
 
 export function SettingsContent({ settings, userEmail }: SettingsContentProps) {
   // Password change state
+  const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [passwordSaving, setPasswordSaving] = useState(false);
@@ -28,8 +29,12 @@ export function SettingsContent({ settings, userEmail }: SettingsContentProps) {
     setPasswordError("");
     setPasswordMessage("");
 
+    if (!currentPassword) {
+      setPasswordError("Current password is required");
+      return;
+    }
     if (newPassword.length < 8) {
-      setPasswordError("Password must be at least 8 characters");
+      setPasswordError("New password must be at least 8 characters");
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -39,6 +44,18 @@ export function SettingsContent({ settings, userEmail }: SettingsContentProps) {
 
     setPasswordSaving(true);
     const supabase = createClient();
+
+    // Verify current password first
+    const { error: verifyError } = await supabase.auth.signInWithPassword({
+      email: userEmail,
+      password: currentPassword,
+    });
+    if (verifyError) {
+      setPasswordSaving(false);
+      setPasswordError("Current password is incorrect");
+      return;
+    }
+
     const { error } = await supabase.auth.updateUser({ password: newPassword });
     setPasswordSaving(false);
 
@@ -48,6 +65,7 @@ export function SettingsContent({ settings, userEmail }: SettingsContentProps) {
     }
 
     setPasswordMessage("Password updated");
+    setCurrentPassword("");
     setNewPassword("");
     setConfirmPassword("");
     setTimeout(() => setPasswordMessage(""), 3000);
@@ -119,6 +137,21 @@ export function SettingsContent({ settings, userEmail }: SettingsContentProps) {
             </div>
             <div className="space-y-3 max-w-md">
               <div>
+                <Label htmlFor="current-password" className="text-xs text-ink-muted">
+                  Current password
+                </Label>
+                <Input
+                  id="current-password"
+                  type="password"
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value.slice(0, 72))}
+                  className="mt-1 bg-cream border-border"
+                  placeholder="Enter current password"
+                  maxLength={72}
+                  autoComplete="current-password"
+                />
+              </div>
+              <div>
                 <Label htmlFor="new-password" className="text-xs text-ink-muted">
                   New password
                 </Label>
@@ -151,7 +184,7 @@ export function SettingsContent({ settings, userEmail }: SettingsContentProps) {
               <div className="flex items-center gap-3">
                 <Button
                   onClick={handlePasswordChange}
-                  disabled={passwordSaving || !newPassword || !confirmPassword}
+                  disabled={passwordSaving || !currentPassword || !newPassword || !confirmPassword}
                   className="bg-forest text-cream hover:bg-forest-deep"
                 >
                   {passwordSaving ? "Updating..." : "Update Password"}

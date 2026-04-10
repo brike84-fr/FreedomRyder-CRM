@@ -121,7 +121,7 @@ For each workflow JSON in `n8n-workflows/`:
 - Click the Webhook node
 - Authentication: **Header Auth**
 - Name: `x-webhook-secret`
-- Value: `af496a73cccbdf8f4a8d92e16e58790f388edbae09bfcdd7ff67a0873efe9abf`
+- Value: *(paste the value of `N8N_WEBHOOK_SECRET` from your `.env.local` file)*
 
 **Verification:**
 - All 6 workflows show green "Active" badge
@@ -155,9 +155,9 @@ git push -u origin main
 
    | Name | Value |
    |------|-------|
-   | `NEXT_PUBLIC_SUPABASE_URL` | `https://mdletiyedvghepeurmiq.supabase.co` |
-   | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | *(anon key from Supabase)* |
-   | `N8N_WEBHOOK_SECRET` | `af496a73cccbdf8f4a8d92e16e58790f388edbae09bfcdd7ff67a0873efe9abf` |
+   | `NEXT_PUBLIC_SUPABASE_URL` | *(Supabase project URL from Dashboard → Settings → API)* |
+   | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | *(anon key from Supabase Dashboard → Settings → API)* |
+   | `N8N_WEBHOOK_SECRET` | *(value from `.env.local` — generated via `openssl rand -hex 32`)* |
    | `N8N_WEBHOOK_URL` | *(webhook URL from Step 5)* |
 
 5. Click **Deploy**

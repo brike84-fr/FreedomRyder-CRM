@@ -41,7 +41,16 @@ export async function updateLead(
     return { error: "Invalid assignee" };
   }
 
-  const { error } = await supabase.from("leads").update(updates).eq("id", id);
+  // Construct explicit payload — prevent mass-assignment of unintended columns
+  const payload: Record<string, unknown> = {};
+  if (updates.status !== undefined) payload.status = updates.status;
+  if (updates.temperature !== undefined) payload.temperature = updates.temperature;
+  if (updates.assigned_to !== undefined) payload.assigned_to = updates.assigned_to;
+  if (updates.notes !== undefined) payload.notes = updates.notes;
+
+  if (Object.keys(payload).length === 0) return { error: "No fields to update" };
+
+  const { error } = await supabase.from("leads").update(payload).eq("id", id);
 
   if (error) {
     console.error("updateLead error:", error);
@@ -55,6 +64,7 @@ export async function updateLead(
 }
 
 export async function pauseLeadSequence(id: string): Promise<ActionResult> {
+  if (!id) return { error: "Missing lead ID" };
   const supabase = await createClient();
   const { error } = await supabase
     .from("leads")
@@ -94,6 +104,7 @@ export async function resumeLeadSequence(id: string): Promise<ActionResult> {
 }
 
 export async function markNotificationRead(id: string): Promise<ActionResult> {
+  if (!id) return { error: "Missing notification ID" };
   const supabase = await createClient();
   const { error } = await supabase
     .from("notifications")
@@ -148,9 +159,19 @@ export async function updateSettings(settings: {
     return { error: "Email 3 delay must be 1–90 days" };
   }
 
+  // Construct explicit payload — prevent mass-assignment
+  const settingsPayload: Record<string, unknown> = { updated_at: new Date().toISOString() };
+  if (settings.sending_email !== undefined) settingsPayload.sending_email = settings.sending_email;
+  if (settings.email_1_delay_hours !== undefined) settingsPayload.email_1_delay_hours = settings.email_1_delay_hours;
+  if (settings.email_2_delay_days !== undefined) settingsPayload.email_2_delay_days = settings.email_2_delay_days;
+  if (settings.email_3_delay_days !== undefined) settingsPayload.email_3_delay_days = settings.email_3_delay_days;
+  if (settings.email_1_subject !== undefined) settingsPayload.email_1_subject = settings.email_1_subject;
+  if (settings.email_2_subject !== undefined) settingsPayload.email_2_subject = settings.email_2_subject;
+  if (settings.email_3_subject !== undefined) settingsPayload.email_3_subject = settings.email_3_subject;
+
   const { error } = await supabase
     .from("email_sequence_settings")
-    .update({ ...settings, updated_at: new Date().toISOString() })
+    .update(settingsPayload)
     .eq("id", 1);
 
   if (error) {
