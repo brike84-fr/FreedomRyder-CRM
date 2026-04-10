@@ -27,7 +27,9 @@ import {
   CheckCircle2,
   Clock,
   Send,
+  HelpCircle,
 } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { formatDate, formatDateTime } from "@/lib/format-date";
 
 const statusLabels: Record<LeadStatus, string> = {
@@ -59,6 +61,13 @@ const emailStepLabels = [
   "Auto-reply (immediate)",
   "Follow-up (day 3–4)",
   "Handoff to Bob (day 7–10)",
+];
+
+const emailStepTooltips = [
+  "",
+  "Sent automatically when a new inquiry comes in",
+  "Follow-up email sent a few days later if no reply",
+  "Final email that hands the lead off to Bob for a personal call",
 ];
 
 const emailLogStatusIcons: Record<string, React.ReactNode> = {
@@ -259,6 +268,14 @@ export function LeadDetailContent({ leadId, lead, emailLogs }: LeadDetailContent
               <CardTitle className="text-sm font-semibold text-ink-light uppercase tracking-wider flex items-center gap-2">
                 <Mail className="w-4 h-4" />
                 Email Sequence
+                <Tooltip>
+                  <TooltipTrigger className="cursor-help">
+                    <HelpCircle className="w-3.5 h-3.5 text-ink-muted" />
+                  </TooltipTrigger>
+                  <TooltipContent side="right" className="max-w-xs text-xs">
+                    3-step automated email drip: auto-reply, follow-up, then handoff to Bob. Runs automatically via n8n — pause it if you&apos;re already talking to this lead directly.
+                  </TooltipContent>
+                </Tooltip>
                 {lead.email_sequence_active && (
                   <Badge className="bg-forest text-cream text-xs border-0 ml-2">Active</Badge>
                 )}
@@ -269,11 +286,16 @@ export function LeadDetailContent({ leadId, lead, emailLogs }: LeadDetailContent
               <div className="flex items-center gap-3 mb-6">
                 {[1, 2, 3].map((step) => (
                   <div key={step} className="flex items-center gap-2">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                      lead.email_sequence_step >= step ? "bg-forest text-cream" : "bg-stone-light text-ink-muted"
-                    }`}>
-                      {step}
-                    </div>
+                    <Tooltip>
+                      <TooltipTrigger className="cursor-help">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
+                          lead.email_sequence_step >= step ? "bg-forest text-cream" : "bg-stone-light text-ink-muted"
+                        }`}>
+                          {step}
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent className="text-xs">{emailStepTooltips[step]}</TooltipContent>
+                    </Tooltip>
                     <span className="text-xs text-ink-muted hidden sm:inline">{emailStepLabels[step]}</span>
                     {step < 3 && <div className={`w-8 h-px ${lead.email_sequence_step > step ? "bg-forest" : "bg-stone"}`} />}
                   </div>
@@ -301,23 +323,37 @@ export function LeadDetailContent({ leadId, lead, emailLogs }: LeadDetailContent
               )}
 
               {lead.email_sequence_active ? (
-                <Button
-                  variant="outline"
-                  onClick={handlePauseSequence}
-                  disabled={saving}
-                  className="mt-4 border-rust text-rust hover:bg-rust-light"
-                >
-                  Pause Sequence
-                </Button>
+                <Tooltip>
+                  <TooltipTrigger>
+                    <Button
+                      variant="outline"
+                      onClick={handlePauseSequence}
+                      disabled={saving}
+                      className="mt-4 border-rust text-rust hover:bg-rust-light"
+                    >
+                      Pause Sequence
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent className="text-xs max-w-xs">
+                    Stop automated emails for this lead. Use this when you&apos;re already in contact with them directly.
+                  </TooltipContent>
+                </Tooltip>
               ) : lead.email_sequence_step < 3 && (
-                <Button
-                  variant="outline"
-                  onClick={handleResumeSequence}
-                  disabled={saving}
-                  className="mt-4 border-forest text-forest hover:bg-forest-light"
-                >
-                  Resume Sequence
-                </Button>
+                <Tooltip>
+                  <TooltipTrigger>
+                    <Button
+                      variant="outline"
+                      onClick={handleResumeSequence}
+                      disabled={saving}
+                      className="mt-4 border-forest text-forest hover:bg-forest-light"
+                    >
+                      Resume Sequence
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent className="text-xs max-w-xs">
+                    Restart automated emails from where they left off.
+                  </TooltipContent>
+                </Tooltip>
               )}
             </CardContent>
           </Card>
