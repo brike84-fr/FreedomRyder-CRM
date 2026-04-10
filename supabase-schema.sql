@@ -34,7 +34,7 @@ create table leads (
   -- Contact info (with length constraints)
   full_name varchar(200) not null,
   first_name varchar(100) not null,
-  email varchar(254) not null check (email ~* '^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$'),
+  email varchar(254) not null check (email ~* E'^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$'),
   phone varchar(30) default '',
   state varchar(100) default '',
 
