@@ -116,18 +116,22 @@ create table lead_audit_log (
 create index idx_audit_lead on lead_audit_log(lead_id, changed_at desc);
 
 create or replace function log_lead_audit()
-returns trigger as $$
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
 begin
   if (TG_OP = 'INSERT') then
-    insert into lead_audit_log (lead_id, action, new_values)
+    insert into public.lead_audit_log (lead_id, action, new_values)
     values (new.id, 'INSERT', to_jsonb(new));
     return new;
   elsif (TG_OP = 'UPDATE') then
-    insert into lead_audit_log (lead_id, action, old_values, new_values)
+    insert into public.lead_audit_log (lead_id, action, old_values, new_values)
     values (new.id, 'UPDATE', to_jsonb(old), to_jsonb(new));
     return new;
   elsif (TG_OP = 'DELETE') then
-    insert into lead_audit_log (lead_id, action, old_values)
+    insert into public.lead_audit_log (lead_id, action, old_values)
     values (old.id, 'DELETE', to_jsonb(old));
     return old;
   end if;
