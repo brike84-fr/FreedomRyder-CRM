@@ -203,9 +203,10 @@
       "type": "n8n-nodes-base.supabase",
       "typeVersion": 1,
       "position": [1550, 0],
+      "continueOnFail": true,
       "parameters": {
         "resource": "row",
-        "operation": "upsert",
+        "operation": "create",
         "tableId": "email_sequence_log",
         "fieldsUi": {
           "fieldValues": [
@@ -254,9 +255,10 @@
       "type": "n8n-nodes-base.supabase",
       "typeVersion": 1,
       "position": [1550, 500],
+      "continueOnFail": true,
       "parameters": {
         "resource": "row",
-        "operation": "upsert",
+        "operation": "create",
         "tableId": "email_sequence_log",
         "fieldsUi": {
           "fieldValues": [
