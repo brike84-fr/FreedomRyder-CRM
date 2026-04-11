@@ -292,16 +292,14 @@
   "connections": {
     "Every 2 Hours": {
       "main": [[
-        { "node": "Get Active Sequence Leads", "type": "main", "index": 0 },
-        { "node": "Get Sequence Settings", "type": "main", "index": 0 },
-        { "node": "Get Email Logs", "type": "main", "index": 0 }
+        { "node": "Get Active Sequence Leads", "type": "main", "index": 0 }
       ]]
     },
     "Get Active Sequence Leads": {
-      "main": [[{ "node": "Check What's Due", "type": "main", "index": 0 }]]
+      "main": [[{ "node": "Get Sequence Settings", "type": "main", "index": 0 }]]
     },
     "Get Sequence Settings": {
-      "main": [[{ "node": "Check What's Due", "type": "main", "index": 0 }]]
+      "main": [[{ "node": "Get Email Logs", "type": "main", "index": 0 }]]
     },
     "Get Email Logs": {
       "main": [[{ "node": "Check What's Due", "type": "main", "index": 0 }]]

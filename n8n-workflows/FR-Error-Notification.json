@@ -1,0 +1,40 @@
+{
+  "name": "FR - Error Notification",
+  "nodes": [
+    {
+      "id": "error_trigger",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [0, 300],
+      "parameters": {}
+    },
+    {
+      "id": "send_alert",
+      "name": "Send Error Alert",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [250, 300],
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "sendTo": "freedomryderusa@gmail.com",
+        "subject": "={{ '[CRM Alert] Workflow failed - ' + $json.workflow.name }}",
+        "emailType": "text",
+        "message": "={{ 'A CRM workflow hit an error.\\n\\nWorkflow: ' + $json.workflow.name + '\\nError: ' + $json.execution.error.message + '\\nNode: ' + $json.execution.lastNodeExecuted + '\\n\\nCheck your n8n dashboard to review the failed execution:\\nhttps://teamfr1984.app.n8n.cloud' }}",
+        "options": {
+          "appendAttribution": false,
+          "ccList": "forrest@freedomryder.com"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Error Trigger": {
+      "main": [[{"node": "Send Error Alert", "type": "main", "index": 0}]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
