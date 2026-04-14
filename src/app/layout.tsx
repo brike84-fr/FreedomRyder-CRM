@@ -1,18 +1,17 @@
 import type { Metadata } from "next";
-import { DM_Sans, DM_Serif_Display } from "next/font/google";
+import { Inter, Newsreader } from "next/font/google";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import "./globals.css";
 
-const dmSans = DM_Sans({
+const inter = Inter({
   variable: "--font-sans",
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
 });
 
-const dmSerif = DM_Serif_Display({
+const newsreader = Newsreader({
   variable: "--font-heading",
   subsets: ["latin"],
-  weight: "400",
+  weight: ["400", "500", "600"],
 });
 
 export const metadata: Metadata = {
@@ -26,7 +25,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${dmSans.variable} ${dmSerif.variable} h-full`}>
+    <html lang="en" className={`${inter.variable} ${newsreader.variable} h-full`}>
       <body className="min-h-full flex antialiased">
         <TooltipProvider>{children}</TooltipProvider>
       </body>
