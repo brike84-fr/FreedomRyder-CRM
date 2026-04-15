@@ -11,20 +11,20 @@
         "event": "messageReceived",
         "simple": true,
         "filters": {
-          "q": "subject:Inquiry -label:fr-auto-sent"
+          "q": "from:mailer@shopify.com subject:\"New customer message\" -label:fr-auto-sent"
         }
       }
     },
     {
       "id": "parse",
-      "name": "Parse Email",
+      "name": "Parse Shopify Email",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [250, 300],
       "parameters": {
         "mode": "runOnceForAllItems",
         "language": "javaScript",
-        "jsCode": "const items = $input.all();\nconst results = [];\n\nfor (const item of items) {\n  try {\n    const text = item.json.text || item.json.snippet || item.json.body || '';\n    const subject = item.json.subject || '';\n    const messageId = item.json.id || item.json.messageId || '';\n    const threadId = item.json.threadId || '';\n\n    const fullName = text.match(/Full Name:\\s*(.+)/)?.[1]?.trim() || '';\n    const email = text.match(/Email:\\s*(.+)/)?.[1]?.trim() || '';\n    const phone = text.match(/Phone:\\s*(.+)/)?.[1]?.trim() || '';\n    const state = text.match(/State:\\s*(.+)/)?.[1]?.trim() || '';\n    const ridingGoal = text.match(/Primary Riding Goal:\\s*(.+)/)?.[1]?.trim() || '';\n    const height = text.match(/Height:\\s*(.+)/)?.[1]?.trim() || '';\n    const weight = text.match(/Weight:\\s*(.+)/)?.[1]?.trim() || '';\n\n    if (!email || !email.includes('@')) continue;\n\n    const isVeteran = subject.toLowerCase().includes('veteran');\n    const firstName = fullName.split(' ')[0] || 'there';\n\n    results.push({\n      json: {\n        fullName,\n        firstName,\n        email,\n        phone,\n        state,\n        ridingGoal,\n        height,\n        weight,\n        inquiryType: isVeteran ? 'veteran' : 'general',\n        originalSubject: subject,\n        messageId,\n        threadId\n      }\n    });\n  } catch (error) {\n    continue;\n  }\n}\n\nif (results.length === 0) {\n  throw new Error('Could not parse a valid email from the inquiry.');\n}\n\nreturn results;"
+        "jsCode": "const items = $input.all();\nconst results = [];\n\nfor (const item of items) {\n  try {\n    const text = item.json.text || item.json.snippet || item.json.body || '';\n    const subject = item.json.subject || '';\n    const messageId = item.json.id || item.json.messageId || '';\n    const threadId = item.json.threadId || '';\n\n    // Parse Shopify key-value format\n    // Fields come as \"Label:\\nValue\\n\" pairs\n    const lines = text.split('\\n').map(l => l.trim()).filter(Boolean);\n    const fields = {};\n    let currentKey = null;\n\n    for (const line of lines) {\n      // Skip the header line\n      if (line.includes('received a new message from')) continue;\n\n      // Check if this line is a label (ends with colon)\n      if (line.endsWith(':') && !line.includes('@') && !line.includes('//')) {\n        currentKey = line.slice(0, -1).toLowerCase().trim();\n      } else if (currentKey) {\n        // Skip broken Shopify template variables\n        if (line.includes('%{') || line.includes('creation_date')) continue;\n        // This is the value for the current key\n        if (!fields[currentKey]) {\n          fields[currentKey] = line;\n        }\n        currentKey = null;\n      }\n    }\n\n    const fullName = fields['name'] || '';\n    const email = fields['email'] || '';\n    const phone = fields['phone'] || '';\n    const body = fields['body'] || '';\n    const ridingSince = fields['riding since'] || '';\n    const countryCode = fields['country code'] || '';\n\n    if (!email || !email.includes('@')) continue;\n    // Skip if the email is freedomryder's own (test submissions)\n    if (email.toLowerCase().includes('freedomryder.com')) continue;\n\n    const firstName = fullName.split(' ')[0] || 'there';\n\n    // Detect veteran inquiry from body content or form source\n    const combinedText = (body + ' ' + subject + ' ' + (fields['inquiry type'] || '')).toLowerCase();\n    const isVeteran = combinedText.includes('veteran') || combinedText.includes('va fund') || combinedText.includes('va-fund');\n\n    results.push({\n      json: {\n        fullName,\n        firstName,\n        email: email.toLowerCase(),\n        phone,\n        state: '',\n        ridingGoal: ridingSince || body,\n        height: '',\n        weight: '',\n        inquiryType: isVeteran ? 'veteran' : 'general',\n        originalSubject: subject,\n        messageId,\n        threadId\n      }\n    });\n  } catch (error) {\n    continue;\n  }\n}\n\nif (results.length === 0) {\n  throw new Error('Could not parse a valid lead from the Shopify contact form email.');\n}\n\nreturn results;"
       }
     },
     {
@@ -85,15 +85,15 @@
         "tableId": "leads",
         "fieldsUi": {
           "fieldValues": [
-            { "fieldId": "full_name", "fieldValue": "={{ $('Parse Email').first().json.fullName }}" },
-            { "fieldId": "first_name", "fieldValue": "={{ $('Parse Email').first().json.firstName }}" },
-            { "fieldId": "email", "fieldValue": "={{ $('Parse Email').first().json.email }}" },
-            { "fieldId": "phone", "fieldValue": "={{ $('Parse Email').first().json.phone }}" },
-            { "fieldId": "state", "fieldValue": "={{ $('Parse Email').first().json.state }}" },
-            { "fieldId": "riding_goal", "fieldValue": "={{ $('Parse Email').first().json.ridingGoal }}" },
-            { "fieldId": "height", "fieldValue": "={{ $('Parse Email').first().json.height }}" },
-            { "fieldId": "weight", "fieldValue": "={{ $('Parse Email').first().json.weight }}" },
-            { "fieldId": "inquiry_type", "fieldValue": "={{ $('Parse Email').first().json.inquiryType }}" },
+            { "fieldId": "full_name", "fieldValue": "={{ $('Parse Shopify Email').first().json.fullName }}" },
+            { "fieldId": "first_name", "fieldValue": "={{ $('Parse Shopify Email').first().json.firstName }}" },
+            { "fieldId": "email", "fieldValue": "={{ $('Parse Shopify Email').first().json.email }}" },
+            { "fieldId": "phone", "fieldValue": "={{ $('Parse Shopify Email').first().json.phone }}" },
+            { "fieldId": "state", "fieldValue": "={{ $('Parse Shopify Email').first().json.state }}" },
+            { "fieldId": "riding_goal", "fieldValue": "={{ $('Parse Shopify Email').first().json.ridingGoal }}" },
+            { "fieldId": "height", "fieldValue": "={{ $('Parse Shopify Email').first().json.height }}" },
+            { "fieldId": "weight", "fieldValue": "={{ $('Parse Shopify Email').first().json.weight }}" },
+            { "fieldId": "inquiry_type", "fieldValue": "={{ $('Parse Shopify Email').first().json.inquiryType }}" },
             { "fieldId": "status", "fieldValue": "new" },
             { "fieldId": "temperature", "fieldValue": "medium" },
             { "fieldId": "source", "fieldValue": "website" },
@@ -104,18 +104,39 @@
       }
     },
     {
+      "id": "log_email_1",
+      "name": "Log Email 1",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1250, 200],
+      "continueOnFail": true,
+      "parameters": {
+        "resource": "row",
+        "operation": "create",
+        "tableId": "email_sequence_log",
+        "fieldsUi": {
+          "fieldValues": [
+            { "fieldId": "lead_id", "fieldValue": "={{ $('Insert Lead into Supabase').first().json.id }}" },
+            { "fieldId": "step", "fieldValue": "1" },
+            { "fieldId": "email_subject", "fieldValue": "={{ $('Parse Shopify Email').first().json.inquiryType === 'veteran' ? 'VA Funding & Handcycle Info' : 'Thanks for Reaching Out!' }}" },
+            { "fieldId": "status", "fieldValue": "sent" }
+          ]
+        }
+      }
+    },
+    {
       "id": "check_type",
       "name": "Veteran or General?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [1250, 200],
+      "position": [1500, 200],
       "parameters": {
         "conditions": {
           "options": { "version": 2, "caseSensitive": false, "typeValidation": "loose" },
           "conditions": [
             {
               "id": "cond_vet",
-              "leftValue": "={{ $('Parse Email').first().json.inquiryType }}",
+              "leftValue": "={{ $('Parse Shopify Email').first().json.inquiryType }}",
               "rightValue": "veteran",
               "operator": { "type": "string", "operation": "equals" }
             }
@@ -129,14 +150,14 @@
       "name": "Send Veteran Auto-Reply",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.1,
-      "position": [1500, 100],
+      "position": [1750, 100],
       "parameters": {
         "resource": "message",
         "operation": "send",
-        "sendTo": "={{ $('Parse Email').first().json.email }}",
+        "sendTo": "={{ $('Parse Shopify Email').first().json.email }}",
         "subject": "Freedom Ryder Handcycles - VA Funding & Handcycle Info",
         "emailType": "text",
-        "message": "={{ 'Hi ' + $('Parse Email').first().json.firstName + ',\\n\\nThis is Mike from Freedom Ryder Handcycles. Thanks for requesting more info on our handcycles + possible VA funding options!\\n\\nFirst, here\\'s a short video of one of our early riders so you can see what these handcycles can do: https://www.youtube.com/watch?v=hcmka1TgSVM&t=140s\\n\\nQuick question: what\\'s the easiest way to follow up with you—email, text, or a quick call?\\n\\nThanks,\\n\\nMike\\n503-692-1029' }}",
+        "message": "={{ 'Hi ' + $('Parse Shopify Email').first().json.firstName + ',\\n\\nThis is Mike from Freedom Ryder Handcycles. Thanks for requesting more info on our handcycles + possible VA funding options!\\n\\nFirst, here\\'s a short video of one of our early riders so you can see what these handcycles can do: https://www.youtube.com/watch?v=hcmka1TgSVM&t=140s\\n\\nQuick question: what\\'s the easiest way to follow up with you—email, text, or a quick call?\\n\\nThanks,\\n\\nMike\\n503-692-1029' }}",
         "options": {
           "appendAttribution": false,
           "ccList": "forrest@freedomryder.com"
@@ -148,14 +169,14 @@
       "name": "Send General Auto-Reply",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.1,
-      "position": [1500, 300],
+      "position": [1750, 300],
       "parameters": {
         "resource": "message",
         "operation": "send",
-        "sendTo": "={{ $('Parse Email').first().json.email }}",
+        "sendTo": "={{ $('Parse Shopify Email').first().json.email }}",
         "subject": "Freedom Ryder Handcycles - Thanks for Reaching Out!",
         "emailType": "text",
-        "message": "={{ 'Hi ' + $('Parse Email').first().json.firstName + ',\\n\\nThis is Mike from Freedom Ryder Handcycles. Thanks for requesting more info!\\n\\nFirst, here\\'s a short video of one of our early riders so you can see what these handcycles can do: https://www.youtube.com/watch?v=hcmka1TgSVM&t=140s\\n\\nQuick question: what\\'s the easiest way to follow up with you—email, text, or a quick call?\\n\\nThanks,\\n\\nMike\\n503-692-1029' }}",
+        "message": "={{ 'Hi ' + $('Parse Shopify Email').first().json.firstName + ',\\n\\nThis is Mike from Freedom Ryder Handcycles. Thanks for requesting more info!\\n\\nFirst, here\\'s a short video of one of our early riders so you can see what these handcycles can do: https://www.youtube.com/watch?v=hcmka1TgSVM&t=140s\\n\\nQuick question: what\\'s the easiest way to follow up with you—email, text, or a quick call?\\n\\nThanks,\\n\\nMike\\n503-692-1029' }}",
         "options": {
           "appendAttribution": false,
           "ccList": "forrest@freedomryder.com"
@@ -167,7 +188,7 @@
       "name": "Mark Step 1 Sent",
       "type": "n8n-nodes-base.supabase",
       "typeVersion": 1,
-      "position": [1750, 200],
+      "position": [2000, 200],
       "parameters": {
         "resource": "row",
         "operation": "update",
@@ -179,7 +200,7 @@
             {
               "keyName": "email",
               "condition": "eq",
-              "keyValue": "={{ $('Parse Email').first().json.email }}"
+              "keyValue": "={{ $('Parse Shopify Email').first().json.email }}"
             }
           ]
         },
@@ -188,26 +209,6 @@
             { "fieldId": "email_sequence_step", "fieldValue": "1" },
             { "fieldId": "status", "fieldValue": "contacted" },
             { "fieldId": "last_contacted_at", "fieldValue": "={{ $now.toISO() }}" }
-          ]
-        }
-      }
-    },
-    {
-      "id": "log_email_1",
-      "name": "Log Email 1",
-      "type": "n8n-nodes-base.supabase",
-      "typeVersion": 1,
-      "position": [2000, 200],
-      "parameters": {
-        "resource": "row",
-        "operation": "create",
-        "tableId": "email_sequence_log",
-        "fieldsUi": {
-          "fieldValues": [
-            { "fieldId": "lead_id", "fieldValue": "={{ $('Insert Lead into Supabase').first().json.id }}" },
-            { "fieldId": "step", "fieldValue": "1" },
-            { "fieldId": "email_subject", "fieldValue": "={{ $('Parse Email').first().json.inquiryType === 'veteran' ? 'VA Funding & Handcycle Info' : 'Thanks for Reaching Out!' }}" },
-            { "fieldId": "status", "fieldValue": "sent" }
           ]
         }
       }
@@ -226,7 +227,7 @@
           "fieldValues": [
             { "fieldId": "type", "fieldValue": "new_lead" },
             { "fieldId": "title", "fieldValue": "New Lead" },
-            { "fieldId": "message", "fieldValue": "={{ $('Parse Email').first().json.fullName + ' submitted the website form (' + $('Parse Email').first().json.inquiryType + ')' }}" },
+            { "fieldId": "message", "fieldValue": "={{ $('Parse Shopify Email').first().json.fullName + ' submitted the website form (' + $('Parse Shopify Email').first().json.inquiryType + ')' }}" },
             { "fieldId": "lead_id", "fieldValue": "={{ $('Insert Lead into Supabase').first().json.id }}" }
           ]
         }
@@ -235,9 +236,9 @@
   ],
   "connections": {
     "Gmail Trigger": {
-      "main": [[{ "node": "Parse Email", "type": "main", "index": 0 }]]
+      "main": [[{ "node": "Parse Shopify Email", "type": "main", "index": 0 }]]
     },
-    "Parse Email": {
+    "Parse Shopify Email": {
       "main": [[{ "node": "Check Duplicate Lead", "type": "main", "index": 0 }]]
     },
     "Check Duplicate Lead": {
